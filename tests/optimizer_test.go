@@ -121,5 +121,6 @@ func TestPlannerRunsOverFrames(t *testing.T) {
 	if !strings.Contains(caption, "Артас") {
 		t.Fatalf("caption %q", caption)
 	}
+	a.noErrors(t)
 	t.Logf("finished after %v frames", ticks)
 }

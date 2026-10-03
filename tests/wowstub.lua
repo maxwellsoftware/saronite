@@ -46,7 +46,7 @@ FAKE = {
 	items = {},
 	-- tooltip lines per item id: { leftText, r, g, b, rightText, r, g, b }
 	tooltips = {},
-	-- font files that "exist"; Expressway is absent like on a fresh install
+	-- font files that exist in the client
 	fonts = {
 		["Interface\\AddOns\\Saronite\\Media\\Fonts\\PTSansNarrow-Bold.ttf"] = true,
 		["Fonts\\FRIZQT__.TTF"] = true,
@@ -65,17 +65,31 @@ local frameMethods = {}
 function frameMethods:RegisterEvent(event) self.events[event] = true end
 function frameMethods:SetScript(name, fn) self.scripts[name] = fn end
 function frameMethods:GetScript(name) return self.scripts[name] end
-function frameMethods:SetText(t) self.text = t end
+-- Like the client: a font string or edit box without a font cannot show
+-- text, and a missing font file is not applied.
+function frameMethods:SetText(t)
+	if rawget(self, "isText") and not rawget(self, "font") then error("SetText(): Font not set", 2) end
+	self.text = t
+end
 function frameMethods:GetText() return self.text or "" end
 function frameMethods:IsShown() return self.shown end
 function frameMethods:Show() self.shown = true end
 function frameMethods:Hide() self.shown = false end
-function frameMethods:CreateFontString() return NewFrame() end
+function frameMethods:CreateFontString()
+	local fs = NewFrame()
+	fs.isText = true
+	return fs
+end
 function frameMethods:CreateTexture() return NewFrame() end
-function frameMethods:SetFont(path) self.font = path end
-function frameMethods:GetFont() if FAKE.fonts[self.font] then return self.font end end
+function frameMethods:SetFont(path)
+	if FAKE.fonts[path] then
+		self.font = path
+		return 1
+	end
+end
+function frameMethods:GetFont() return rawget(self, "font") end
 function frameMethods:GetStringWidth()
-	if FAKE.fonts[self.font] and (self.text or "") ~= "" then return 50 end
+	if rawget(self, "font") and (rawget(self, "text") or "") ~= "" then return 50 end
 	return 0
 end
 function frameMethods:SetTextColor(r, g, b) self.color = { r, g, b } end
@@ -116,6 +130,7 @@ end
 
 function CreateFrame(kind, name)
 	local f = NewFrame()
+	if kind == "EditBox" then f.isText = true end
 	if kind == "GameTooltip" then
 		f.name = name
 		for k, v in pairs(tooltipMethods) do f[k] = v end

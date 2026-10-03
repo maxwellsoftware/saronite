@@ -20,48 +20,42 @@ Style.color = {
 	warn = { 1.00, 0.70, 0.25, 1 },
 }
 
--- Expressway (Typodermic) may not be redistributed, so it is only used when
--- present: dropped into Saronite/Media/Fonts or shipped by ElvUI. Its
--- Cyrillic coverage is not guaranteed, so localized text on ruRU clients
--- uses PT Sans Narrow (SIL OFL, bundled).
-local EXPRESSWAY = {
-	"Interface\\AddOns\\Saronite\\Media\\Fonts\\Expressway.ttf",
-	"Interface\\AddOns\\ElvUI\\Media\\Fonts\\Expressway.ttf",
-	"Interface\\AddOns\\ElvUI\\Core\\Media\\Fonts\\Expressway.ttf",
-}
+-- PT Sans Narrow (SIL OFL, bundled, has Cyrillic); the client's default
+-- font if it cannot be loaded.
 local BUNDLED = "Interface\\AddOns\\Saronite\\Media\\Fonts\\PTSansNarrow-Bold.ttf"
 
-local fonts = {}
+local font
 
--- A font file works if text rendered with it has a width.
-local function usable(path)
-	local probe = UIParent:CreateFontString(nil, "OVERLAY")
-	probe:SetFont(path, 12)
-	probe:SetText("Saronite 123")
-	local ok = probe:GetFont() ~= nil and (probe:GetStringWidth() or 0) > 0
-	probe:SetText("")
+local function normalize(path)
+	return string.lower(string.gsub(path or "", "/", "\\"))
+end
+
+-- A font file works if the font string accepts it and text rendered with it
+-- has a width. The probe always starts from the client's default font: a
+-- font string without a font raises "Font not set" on SetText.
+local probe
+local function check(path)
+	probe = probe or UIParent:CreateFontString(nil, "OVERLAY")
 	probe:Hide()
-	return ok
+	probe:SetFont(STANDARD_TEXT_FONT, 12)
+	probe:SetFont(path, 12)
+	if normalize(probe:GetFont()) ~= normalize(path) then return false end
+	probe:SetText("Saronite 123")
+	local width = probe:GetStringWidth() or 0
+	probe:SetText("")
+	return width > 0
 end
 
-local function resolve(kind)
-	if fonts[kind] then return fonts[kind] end
-	local latinOnly = kind == "latin" or GetLocale() ~= "ruRU"
-	if latinOnly then
-		for _, path in ipairs(EXPRESSWAY) do
-			if usable(path) then
-				fonts[kind] = path
-				return path
-			end
-		end
+local function usable(path)
+	local ok, result = pcall(check, path)
+	return ok and result
+end
+
+function Style.Font()
+	if not font then
+		font = usable(BUNDLED) and BUNDLED or STANDARD_TEXT_FONT
 	end
-	fonts[kind] = usable(BUNDLED) and BUNDLED or STANDARD_TEXT_FONT
-	return fonts[kind]
-end
-
--- kind: "latin" for titles and numbers, "text" for localized text.
-function Style.Font(kind)
-	return resolve(kind or "text")
+	return font
 end
 
 function Style.Backdrop(frame, color)

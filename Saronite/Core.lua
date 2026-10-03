@@ -1,6 +1,6 @@
 local ADDON_NAME, ns = ...
 
-ns.VERSION = "0.3.0"
+ns.VERSION = "0.3.1"
 ns.FORMAT_VERSION = 1
 
 local L = ns.L
@@ -52,7 +52,7 @@ frame:SetScript("OnEvent", function(self, event, arg1)
 	if event == "ADDON_LOADED" then
 		if arg1 == ADDON_NAME then
 			InitDB()
-			ns.UI.Init()
+			ns.Safe(ns.UI.Init)
 		end
 	elseif event == "BANKFRAME_OPENED" then
 		bankOpen = true
@@ -68,7 +68,17 @@ end)
 
 SLASH_SARONITE1 = "/sar"
 SLASH_SARONITE2 = "/saronite"
-SlashCmdList.SARONITE = function(msg)
+-- Errors are printed to chat: WoW hides script errors by default and a
+-- silent failure looks like "the addon does nothing".
+function ns.Safe(fn, ...)
+	local ok, err = pcall(fn, ...)
+	if not ok then
+		ns.Print("|cffff5555" .. tostring(err) .. "|r")
+	end
+	return ok
+end
+
+local function slash(msg)
 	msg = string.lower(strtrim(msg or ""))
 	if msg == "bank" then
 		local bank = ns.GetBank()
@@ -85,4 +95,8 @@ SlashCmdList.SARONITE = function(msg)
 	else
 		ns.UI.Toggle()
 	end
+end
+
+SlashCmdList.SARONITE = function(msg)
+	ns.Safe(slash, msg)
 end

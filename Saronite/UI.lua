@@ -91,7 +91,7 @@ local function create()
 	local action = Style.Button(window, L.REFRESH, 120, 22)
 	action:SetPoint("BOTTOMLEFT", 10, 10)
 	action:SetScript("OnClick", function()
-		if mode == "export" then showExport() else doImport() end
+		ns.Safe(mode == "export" and showExport or doImport)
 	end)
 	modeButtons.action = action
 
@@ -113,7 +113,7 @@ local function create()
 	compute.label:SetTextColor(unpack(Style.color.accent))
 	compute:SetScript("OnClick", function()
 		window:Hide()
-		ns.Planner.Mine()
+		ns.Safe(ns.Planner.Mine)
 	end)
 
 	local last = Style.Button(window, L.LAST_SETUP, 130, 22)
@@ -153,6 +153,7 @@ local function CreateCharacterButton()
 	if not PaperDollFrame then return end
 
 	local button = Style.Button(PaperDollFrame, L.BUTTON, 72, 20)
+	PaperDollFrame.saroniteButton = button
 	button:SetMovable(true)
 	button:RegisterForDrag("LeftButton")
 
@@ -169,9 +170,9 @@ local function CreateCharacterButton()
 	button:RegisterForClicks("LeftButtonUp", "RightButtonUp")
 	button:SetScript("OnClick", function(_, mouse)
 		if mouse == "RightButton" then
-			UI.Show()
+			ns.Safe(UI.Show)
 		else
-			ns.Planner.Mine()
+			ns.Safe(ns.Planner.Mine)
 		end
 	end)
 	button:SetScript("OnDragStart", function(self)

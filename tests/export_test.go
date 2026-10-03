@@ -66,6 +66,12 @@ func load(t *testing.T, extraLua string) *addon {
 	a.call(t, "FireEvent", lua.LString("ADDON_LOADED"), lua.LString("Saronite"))
 	a.call(t, "FireEvent", lua.LString("BANKFRAME_OPENED"))
 	a.call(t, "FireEvent", lua.LString("BANKFRAME_CLOSED"))
+	a.noErrors(t)
+
+	// The character sheet button must exist (it is the main entry point).
+	if a.L.GetGlobal("PaperDollFrame").(*lua.LTable).RawGetString("saroniteButton") == lua.LNil {
+		t.Fatal("character sheet button was not created")
+	}
 	return a
 }
 
@@ -288,6 +294,7 @@ func TestSlashCommandOpensWindow(t *testing.T) {
 		t.Fatal("window is not shown after /sar")
 	}
 
+	a.noErrors(t)
 	a.callFn(t, handler, lua.LString("bank"))
 	log := a.L.GetGlobal("CHAT_LOG").(*lua.LTable)
 	if log.Len() == 0 || !strings.Contains(log.RawGetInt(log.Len()).String(), "2") {
@@ -380,5 +387,28 @@ func TestFontFallsBackToBundled(t *testing.T) {
 	font := a.callFn(t, style.RawGetString("Font"), lua.LString("latin"))[0].String()
 	if !strings.HasSuffix(font, `PTSansNarrow-Bold.ttf`) {
 		t.Fatalf("font = %s", font)
+	}
+}
+
+// noErrors fails the test if the addon printed an error to chat (ns.Safe).
+func (a *addon) noErrors(t *testing.T) {
+	t.Helper()
+	log := a.L.GetGlobal("CHAT_LOG").(*lua.LTable)
+	log.ForEach(func(_, v lua.LValue) {
+		if strings.Contains(v.String(), "|cffff5555") {
+			t.Errorf("addon error: %s", v.String())
+		}
+	})
+}
+
+// Regression: on enUS clients the font probe ran into "Font not set" while
+// creating the character sheet button, so the addon looked dead.
+func TestLoadsOnEnglishClient(t *testing.T) {
+	a := load(t, `FAKE.locale = "enUS"`)
+	handler := a.L.GetGlobal("SlashCmdList").(*lua.LTable).RawGetString("SARONITE")
+	a.callFn(t, handler, lua.LString(""))
+	a.noErrors(t)
+	if lua.LVAsBool(a.L.GetGlobal("SaroniteFrame").(*lua.LTable).RawGetString("shown")) != true {
+		t.Fatal("window is not shown after /sar")
 	}
 }
