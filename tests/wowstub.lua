@@ -88,6 +88,7 @@ end
 
 UIParent = NewFrame()
 PaperDollFrame = NewFrame()
+CharacterMainHandSlot = NewFrame()
 GameTooltip = NewFrame()
 UISpecialFrames = {}
 SlashCmdList = {}

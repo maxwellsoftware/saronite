@@ -143,8 +143,12 @@ local function CreateCharacterButton()
 	local pos = SaroniteDB.buttonPos
 	if pos then
 		button:SetPoint("TOPLEFT", PaperDollFrame, "TOPLEFT", pos.x, pos.y)
+	elseif CharacterMainHandSlot then
+		-- Bottom left, in the free space next to the weapon slots (mirrors
+		-- where Pawn puts its button on the right).
+		button:SetPoint("BOTTOMRIGHT", CharacterMainHandSlot, "BOTTOMLEFT", -12, 0)
 	else
-		button:SetPoint("TOPRIGHT", PaperDollFrame, "TOPRIGHT", -44, -40)
+		button:SetPoint("BOTTOMLEFT", PaperDollFrame, "BOTTOMLEFT", 24, 86)
 	end
 
 	button:SetScript("OnClick", UI.Show)
