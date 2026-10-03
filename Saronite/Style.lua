@@ -116,10 +116,86 @@ function Style.Window(name, width, height, title)
 	close:SetPoint("TOPRIGHT", -6, -6)
 	close:SetScript("OnClick", function() f:Hide() end)
 
+	-- title rule: accent fading out to the right
+	local a = Style.color.accent
 	local rule = Style.Line(f, 1, 1)
 	rule:SetPoint("TOPLEFT", 1, -30)
 	rule:SetPoint("TOPRIGHT", -1, -30)
+	rule:SetVertexColor(1, 1, 1, 1)
+	rule:SetGradientAlpha("HORIZONTAL", a[1], a[2], a[3], 0.9, a[1], a[2], a[3], 0.08)
 	return f
+end
+
+-- Bar: a thin progress bar. SetValues(before, after, r, g, b) takes
+-- fractions 0..1: "after" is the solid fill, "before" a faint ghost under it,
+-- so a change reads at a glance.
+function Style.Bar(parent, width, height)
+	local f = CreateFrame("Frame", nil, parent)
+	f:SetWidth(width)
+	f:SetHeight(height)
+	local bg = f:CreateTexture(nil, "BACKGROUND")
+	bg:SetTexture(WHITE)
+	bg:SetAllPoints(f)
+	bg:SetVertexColor(1, 1, 1, 0.07)
+	local ghost = f:CreateTexture(nil, "BORDER")
+	ghost:SetTexture(WHITE)
+	ghost:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
+	ghost:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 0, 0)
+	local fill = f:CreateTexture(nil, "ARTWORK")
+	fill:SetTexture(WHITE)
+	fill:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
+	fill:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 0, 0)
+
+	local function set(t, frac, r, g, b, alpha, gradient)
+		frac = math.max(0, math.min(1, frac or 0))
+		if frac <= 0 then
+			t:Hide()
+			return
+		end
+		t:SetWidth(math.max(1, frac * width)) -- width 0 means "unset"
+		if gradient then
+			t:SetVertexColor(1, 1, 1, 1)
+			t:SetGradientAlpha("HORIZONTAL", r * 0.55, g * 0.55, b * 0.55, alpha, r, g, b, alpha)
+		else
+			t:SetVertexColor(r, g, b, alpha)
+		end
+		t:Show()
+	end
+	function f:SetValues(before, after, r, g, b)
+		set(ghost, before, r, g, b, 0.28, false)
+		set(fill, after, r, g, b, 1, true)
+	end
+	return f
+end
+
+-- Card: a flat panel one shade lighter than the window.
+function Style.Card(parent, width, height)
+	local f = CreateFrame("Frame", nil, parent)
+	f:SetWidth(width)
+	f:SetHeight(height)
+	f:SetBackdrop({ bgFile = WHITE, edgeFile = WHITE, edgeSize = 1 })
+	f:SetBackdropColor(1, 1, 1, 0.035)
+	f:SetBackdropBorderColor(1, 1, 1, 0.07)
+	return f
+end
+
+-- Colors of stats, so a stat reads the same everywhere (table, priority).
+Style.statColor = {
+	STR = { 0.94, 0.45, 0.36 }, AGI = { 0.56, 0.86, 0.42 }, STA = { 0.96, 0.76, 0.36 },
+	INT = { 0.42, 0.66, 1.00 }, SPI = { 0.62, 0.86, 1.00 }, AP = { 1.00, 0.58, 0.32 },
+	SP = { 0.74, 0.52, 1.00 }, CRIT = { 1.00, 0.44, 0.58 }, HASTE = { 0.36, 0.86, 0.86 },
+	ARP = { 0.90, 0.68, 0.44 }, HIT = { 1.00, 0.86, 0.36 }, EXP = { 0.98, 0.62, 0.30 },
+	DEF = { 0.64, 0.74, 0.86 }, DODGE = { 0.50, 0.82, 0.62 }, PARRY = { 0.84, 0.72, 0.50 },
+	BLOCK = { 0.72, 0.72, 0.90 }, BLOCKV = { 0.62, 0.62, 0.84 }, MP5 = { 0.40, 0.60, 0.98 },
+	ARMOR = { 0.74, 0.74, 0.76 }, RESIL = { 0.86, 0.52, 0.86 },
+}
+
+function Style.StatColor(code)
+	return Style.statColor[code] or Style.color.text
+end
+
+function Style.Hex(c)
+	return string.format("%02x%02x%02x", c[1] * 255, c[2] * 255, c[3] * 255)
 end
 
 function Style.Button(parent, label, width, height, kind)

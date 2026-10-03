@@ -62,6 +62,7 @@ func load(t *testing.T, extraLua string) *addon {
 		L.SetTop(0)
 	}
 
+	L.SetGlobal("NS", ns) // the addon namespace, for tests written in Lua
 	a := &addon{L: L, ns: ns}
 	a.call(t, "FireEvent", lua.LString("ADDON_LOADED"), lua.LString("Saronite"))
 	a.call(t, "FireEvent", lua.LString("BANKFRAME_OPENED"))

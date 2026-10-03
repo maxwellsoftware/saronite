@@ -1,8 +1,8 @@
 ## Interface: 30300
 ## Title: Saronite
-## Notes: Exports your gear, bags and talents for the guild gear advisor bot (Whitemane Frostmourne).
-## Notes-ruRU: Экспорт экипировки, сумок и талантов для гир-бота гильдии (Whitemane Frostmourne).
-## Version: 0.7.0
+## Notes: Builds the best setup from your gear: gems, enchants, caps, BiS lists, talents and glyphs (Whitemane Frostmourne).
+## Notes-ruRU: Собирает лучший сетап из твоих вещей: камни, чары, капы, BiS-листы, таланты и символы (Whitemane Frostmourne).
+## Version: 0.8.0
 ## SavedVariables: SaroniteDB
 
 Libs\LibStub\LibStub.lua
@@ -14,6 +14,8 @@ Core.lua
 Data\T7.lua
 Data\Weights.lua
 Data\Sources.lua
+Data\Names.lua
+Data\Talents.lua
 Rules.lua
 Character.lua
 Optimizer.lua
@@ -22,5 +24,7 @@ Tooltip.lua
 Scanner.lua
 Export.lua
 Import.lua
+Links.lua
+TalentsView.lua
 SetupView.lua
 UI.lua

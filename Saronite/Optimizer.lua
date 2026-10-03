@@ -105,7 +105,8 @@ function O:statValue(stats)
 	local v = 0
 	local w = self.w
 	for code, x in pairs(stats) do
-		if code ~= "HIT" and code ~= "EXP" and code ~= "DPS" and code ~= "FAP" then
+		if code ~= "HIT" and code ~= "EXP" and code ~= "DPS" and code ~= "FAP"
+			and not (code == "DEF" and (self.defPre or 0) > 0) then -- DEF: valued against the cap in totals
 			v = v + (w[code] or 0) * x
 		end
 	end
@@ -167,6 +168,13 @@ function O:prepare()
 		self.expPost = self.w.EXP or 0
 		self.expCap2 = 56
 	end
+	-- Plate tanks need 540 defense against crits; druids are immune
+	-- through Survival of the Fittest.
+	self.defPre, self.defPost = 0, 0
+	if self.tank and c.class ~= "DRUID" then
+		self.defPre = math.max(self.w.DEF or 0, 1.15 * self.gemUnit)
+		self.defPost = self.w.DEF or 0
+	end
 
 	local s = c.stats
 	local gear = self:gearStats(self:currentSetup())
@@ -174,6 +182,7 @@ function O:prepare()
 	self.baseHit = math.max(0, (s[ratingKey] or 0) - (gear.HIT or 0))
 	self.baseExp = math.max(0, (s.expertise or 0) - (gear.EXP or 0))
 	self.expTalents = math.max(0, (s.expMH or 0) - math.floor((s.expertise or 0) / Rules.expertisePerPoint))
+	self.baseDef = math.max(0, (s.defense or 0) - (gear.DEF or 0))
 end
 
 function O:candidates(match)
@@ -322,6 +331,7 @@ function O:itemValue(it, slot)
 	local v = self:statValue(stats)
 	v = v + (self.hitPre + self.hitPost) / 2 * (stats.HIT or 0)
 	v = v + (self.expPre + self.expPost) / 2 * (stats.EXP or 0)
+	if self.defPre > 0 then v = v + (self.defPre + self.defPost) / 2 * (stats.DEF or 0) end
 	v = v + self:weaponValue(it, slot)
 	v = v + string.len(it.sockets) * self.gemUnit * GEM_POINTS
 	local ench = self:enchantFor(it, slot)
@@ -381,7 +391,7 @@ end
 function O:totals(setup)
 	self:tick()
 	local stats = self:gearStats(setup)
-	local t = { score = 0, hitPct = 0, hitCap = 0, expSkill = 0, expCap = 0 }
+	local t = { score = 0, hitPct = 0, hitCap = 0, expSkill = 0, expCap = 0, defSkill = 0, defCap = 0 }
 	local v = self:statValue(stats)
 	for slot, s in pairs(setup) do v = v + self:weaponValue(s.item, slot) end
 
@@ -413,6 +423,16 @@ function O:totals(setup)
 		t.expSkill = math.floor(rating / epp) + self.expTalents
 		t.expCap = Rules.expertiseCap
 		t.expRating, t.expTalent = rating, self.expTalents
+	end
+
+	if self.defPre > 0 then
+		local total = self.baseDef + (stats.DEF or 0)
+		local capRating = Rules.defenseCap * Rules.defensePerPoint
+		v = v + self.defPre * math.min(total, capRating) + self.defPost * math.max(0, total - capRating)
+		v = v - self:shortfall(total, capRating)
+		t.defSkill = math.floor(total / Rules.defensePerPoint)
+		t.defCap = Rules.defenseCap
+		t.defRating = total
 	end
 
 	local ok, meta = self:metaActive(setup)
@@ -720,6 +740,9 @@ function Optimizer.Body(c, r)
 	if r.after.expCap > 0 then
 		add("C", "exp", math.floor(r.before.expSkill), math.floor(r.after.expSkill), math.floor(r.after.expCap))
 	end
+	if r.after.defCap > 0 then
+		add("C", "def", 400 + r.before.defSkill, 400 + r.after.defSkill, 400 + r.after.defCap)
+	end
 	for _, slot in ipairs(sortedKeys(r.slots)) do
 		local s = r.slots[slot]
 		local gems = { 0, 0, 0, 0 }
@@ -854,6 +877,16 @@ function Optimizer.View(c, r)
 		view.caps.exp = { before = r.before.expSkill, after = r.after.expSkill, cap = r.after.expCap,
 			rating = r.after.expRating, talent = r.after.expTalent }
 	end
+	if r.after.defCap > 0 then
+		view.caps.def = { before = 400 + r.before.defSkill, after = 400 + r.after.defSkill, cap = 400 + r.after.defCap,
+			rating = r.after.defRating }
+	end
+	view.role = r.spec and r.spec.role
+	-- talents and glyphs tab: the class trees and what the player has now
+	view.class, view.specTab, view.sim = c.class, r.spec and r.spec.tab, r.sim
+	view.talentRanks = {}
+	for _, t in ipairs(Character.ActiveTalents(c)) do view.talentRanks[t.tab] = t.ranks end
+	view.glyphs = c.glyphs and c.glyphs[c.activeGroup] or {}
 	for _, code in ipairs(tableStats(r.weights or {})) do
 		view.stats[#view.stats + 1] = { code = code, before = (r.beforeStats or {})[code] or 0, after = (r.afterStats or {})[code] or 0 }
 	end

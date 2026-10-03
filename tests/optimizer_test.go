@@ -16,10 +16,13 @@ func TestLuaOptimizerMatchesGo(t *testing.T) {
 	cases := []struct {
 		export, golden string
 		tank           bool
+		group          int // talent group to switch to, 0: as exported
 	}{
-		{"real_druid_feral.txt", "setup_druid_dps.body.txt", false},
-		{"real_druid_feral.txt", "setup_druid_tank.body.txt", true},
-		{"export_v1.txt", "setup_dk.body.txt", false},
+		{"real_druid_feral.txt", "setup_druid_dps.body.txt", false, 0},
+		{"real_druid_feral.txt", "setup_druid_tank.body.txt", true, 0},
+		{"real_druid_feral.txt", "setup_druid_resto.body.txt", false, 1}, // healer
+		{"export_v1.txt", "setup_dk.body.txt", false, 0},
+		{"export_v1.txt", "setup_dk_tank.body.txt", true, 0}, // defense cap
 	}
 	a := load(t, "")
 	character := a.ns.RawGetString("Character").(*lua.LTable)
@@ -39,6 +42,9 @@ func TestLuaOptimizerMatchesGo(t *testing.T) {
 		ch := a.callFn(t, character.RawGetString("FromExportString"), lua.LString(raw))
 		if ch[0] == lua.LNil {
 			t.Fatalf("%s: decode failed: %v", c.export, ch[1])
+		}
+		if c.group != 0 {
+			ch[0].(*lua.LTable).RawSetString("activeGroup", lua.LNumber(c.group))
 		}
 		start := time.Now()
 		res := a.callFn(t, optimizer.RawGetString("Run"), ch[0], data, lua.LBool(c.tank))
@@ -257,7 +263,7 @@ func TestBisTabAndRoleSelect(t *testing.T) {
 		for _, f in ipairs(FRAMES) do
 			local label = rawget(f, "label")
 			local text = label and rawget(label, "text")
-			if (text == "DPS" or text == "tank") and f.scripts.OnClick then
+			if (text == "DPS" or text == "Tank") and f.scripts.OnClick then
 				f.scripts.OnClick(f)
 				clicked = clicked + 1
 			end
@@ -308,6 +314,7 @@ func TestGlobalTooltipSources(t *testing.T) {
 		tip.hooks.OnTooltipSetItem(tip) -- fires twice: no duplicate
 		FIRST = rawget(tip, "added") and #rawget(tip, "added") or 0
 		FIRST_LINE = rawget(tip, "added") and rawget(tip, "added")[1]
+		SECOND_LINE = rawget(tip, "added") and rawget(tip, "added")[2]
 
 		tip.hooks.OnTooltipCleared(tip)
 		rawset(tip, "added", nil)
@@ -318,10 +325,14 @@ func TestGlobalTooltipSources(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if n := lua.LVAsNumber(a.L.GetGlobal("FIRST")); n != 1 {
-		t.Fatalf("source lines = %v, want 1", n)
+	// the cloak drops from Kel'Thuzad and is sold for emblems on Frostmourne
+	if n := lua.LVAsNumber(a.L.GetGlobal("FIRST")); n != 2 {
+		t.Fatalf("source lines = %v, want 2", n)
 	}
-	if got := a.L.GetGlobal("FIRST_LINE").String(); got != "Drops: Naxxramas (25) — Kel'Thuzad" {
+	if got := a.L.GetGlobal("SECOND_LINE").String(); got != "Source: Vendor" {
+		t.Errorf("second line = %q", got)
+	}
+	if got := a.L.GetGlobal("FIRST_LINE").String(); got != "Source: Naxxramas (25) — Kel'Thuzad" {
 		t.Errorf("line = %q", got)
 	}
 	if n := lua.LVAsNumber(a.L.GetGlobal("AFTER_OFF")); n != 0 {

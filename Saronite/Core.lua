@@ -1,6 +1,6 @@
 local ADDON_NAME, ns = ...
 
-ns.VERSION = "0.7.0"
+ns.VERSION = "0.8.0"
 ns.FORMAT_VERSION = 1
 
 local L = ns.L

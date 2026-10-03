@@ -16,6 +16,10 @@ Rules.expertisePerPoint = 8.1974973
 Rules.meleeHitCap = 8.0
 Rules.spellHitCap = 17.0
 Rules.expertiseCap = 26.0
+-- defense skill over the level-80 base 400: 540 makes plate tanks immune
+-- to crits from raid bosses
+Rules.defenseCap = 140.0
+Rules.defensePerPoint = 4.918498
 
 local function spec(name, role, maybeTank, nameEN)
 	return { name = name, nameEN = nameEN or name, role = role, maybeTank = maybeTank or false }

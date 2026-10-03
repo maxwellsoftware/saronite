@@ -156,7 +156,9 @@ end
 local function CreateCharacterButton()
 	if not PaperDollFrame then return end
 
-	local button = Style.Button(PaperDollFrame, L.BUTTON, 88, 24)
+	-- small enough to fit between the wrist and the main hand slots
+	local button = Style.Button(PaperDollFrame, L.BUTTON, 72, 18)
+	button.label:SetFont(Style.Font(), 11)
 	PaperDollFrame.saroniteButton = button
 	-- visible on the dark character sheet: tinted background, accent border
 	-- and label
@@ -175,7 +177,7 @@ local function CreateCharacterButton()
 		button:SetPoint("TOPLEFT", PaperDollFrame, "TOPLEFT", pos.x, pos.y)
 	elseif CharacterMainHandSlot then
 		-- Bottom left, in the free space next to the weapon slots.
-		button:SetPoint("BOTTOMRIGHT", CharacterMainHandSlot, "BOTTOMLEFT", -12, 0)
+		button:SetPoint("BOTTOMRIGHT", CharacterMainHandSlot, "BOTTOMLEFT", -8, 0)
 	else
 		button:SetPoint("BOTTOMLEFT", PaperDollFrame, "BOTTOMLEFT", 24, 86)
 	end

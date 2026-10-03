@@ -12,7 +12,7 @@ local STAT_ALIASES = { POWER_REGEN0 = "MP5" }
 
 local function newChar()
 	return {
-		professions = {}, talents = {}, stats = {}, items = {}, gemStats = {},
+		professions = {}, talents = {}, glyphs = {}, stats = {}, items = {}, gemStats = {},
 		activeGroup = 1, level = 0,
 	}
 end
@@ -54,6 +54,7 @@ function Character.FromSnapshot(snap)
 	for _, t in ipairs(snap.talents) do
 		c.talents[#c.talents + 1] = { group = t.group, tab = t.tab, points = t.points, ranks = t.ranks }
 	end
+	for group, ids in ipairs(snap.glyphs or {}) do c.glyphs[group] = ids end
 	for _, p in ipairs(snap.professions) do c.professions[p.key] = true end
 	for k, v in pairs(snap.stats) do c.stats[k] = v end
 
@@ -115,6 +116,10 @@ function Character.FromBody(body)
 			end
 		elseif f[1] == "T" and #f >= 5 then
 			c.talents[#c.talents + 1] = { group = n(f[2]), tab = n(f[3]), points = n(f[4]), ranks = f[5] }
+		elseif f[1] == "G" and #f >= 3 then
+			local ids = {}
+			for id in string.gmatch(f[3], "%d+") do ids[#ids + 1] = tonumber(id) end
+			c.glyphs[n(f[2])] = ids
 		elseif f[1] == "P" and #f >= 4 then
 			c.professions[f[2]] = true
 		elseif f[1] == "S" and #f >= 3 and f[3] ~= "" then

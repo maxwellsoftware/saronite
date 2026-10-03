@@ -1,4 +1,4 @@
--- Adds "Drops: <zone> — <boss>" to every item tooltip in the game (bags,
+-- Adds "Source: <zone> — <boss>" (or "Source: Vendor") to every item tooltip in the game (bags,
 -- character sheet, chat links, auction house, comparison tooltips and the
 -- addon's own windows). Can be turned off with /sar sources.
 local _, ns = ...
@@ -9,6 +9,13 @@ ns.Tooltip = Tooltip
 
 local TOOLTIPS = { "GameTooltip", "ItemRefTooltip", "ShoppingTooltip1", "ShoppingTooltip2", "ShoppingTooltip3" }
 local MAX_SOURCES = 3
+
+-- SourceName is a source in the UI language ("@vendor" marks vendor items).
+function Tooltip.SourceName(ref)
+	local name = ns.Data.sourceNames[ref] or "?"
+	if name == "@vendor" then return L.VENDOR end
+	return name
+end
 
 local function itemID(tip)
 	local _, link = tip:GetItem()
@@ -26,7 +33,7 @@ local function addSources(tip)
 	tip.saroniteSource = id
 	for i, ref in ipairs(refs) do
 		if i > MAX_SOURCES then break end
-		tip:AddLine(L.SOURCE .. " " .. (ns.Data.sourceNames[ref] or "?"), 0.75, 0.75, 0.8)
+		tip:AddLine(L.SOURCE .. " " .. Tooltip.SourceName(ref), 0.75, 0.75, 0.8)
 	end
 	tip:Show() -- resize to the new lines
 end

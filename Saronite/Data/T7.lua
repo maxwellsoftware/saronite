@@ -15,6 +15,7 @@ ns.Data.phases["T7"] = {
 		[40008] = { id = 40008, name = "Solid Sky Sapphire", nameRU = "Цельный небесный сапфир", color = "blue", quality = 3, stats = { STA = 24 } },
 		[40012] = { id = 40012, name = "Brilliant Autumn's Glow", nameRU = "Сверкающее сияние осени", color = "yellow", quality = 3, stats = { INT = 16 } },
 		[40014] = { id = 40014, name = "Rigid Autumn's Glow", nameRU = "Прочное сияние осени", color = "yellow", quality = 3, stats = { HIT = 16 } },
+		[40015] = { id = 40015, name = "Thick Autumn's Glow", nameRU = "Матовое сияние осени", color = "yellow", quality = 3, stats = { DEF = 16 } },
 		[40017] = { id = 40017, name = "Quick Autumn's Glow", nameRU = "Мягкое сияние осени", color = "yellow", quality = 3, stats = { HASTE = 16 } },
 		[40022] = { id = 40022, name = "Sovereign Twilight Opal", nameRU = "Царственный сумеречный опал", color = "purple", quality = 3, stats = { STA = 12, STR = 8 } },
 		[40023] = { id = 40023, name = "Shifting Twilight Opal", nameRU = "Изменчивый сумеречный опал", color = "purple", quality = 3, stats = { AGI = 8, STA = 12 } },
