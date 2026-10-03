@@ -394,7 +394,9 @@ function O:totals(setup)
 		local post = self.hitPost
 		if self.spec.role == Rules.MELEE and hc.dualWield and not self.tank then post = self.w.HIT or 0 end
 		v = v + self.hitPre * math.min(total, capRating) + post * math.max(0, total - capRating)
+		v = v - self:shortfall(total, capRating)
 		t.hitPct = rating / self.hitPerPct + talent
+		t.hitRating, t.hitTalent = rating, talent
 		t.hitCap = self.hitCapPct
 	end
 
@@ -404,11 +406,13 @@ function O:totals(setup)
 		local total = rating + self.expTalents * epp
 		local capRating = Rules.expertiseCap * epp
 		v = v + self.expPre * math.min(total, capRating)
+		v = v - self:shortfall(total, capRating)
 		if self.expCap2 > 0 then
 			v = v + self.expPost * math.max(0, math.min(total, self.expCap2 * epp) - capRating)
 		end
 		t.expSkill = math.floor(rating / epp) + self.expTalents
 		t.expCap = Rules.expertiseCap
+		t.expRating, t.expTalent = rating, self.expTalents
 	end
 
 	local ok, meta = self:metaActive(setup)
@@ -419,6 +423,13 @@ function O:totals(setup)
 	end
 	t.score = v
 	return t
+end
+
+-- By the book a cap is always closed, even with a little excess: staying
+-- under it costs as much as a whole gem.
+function O:shortfall(total, capRating)
+	if total < capRating then return self.gemUnit * GEM_POINTS end
+	return 0
 end
 
 function O:pickPair(setup, items, a, b)
@@ -600,6 +611,7 @@ function O:markChanges(slots, current)
 	end
 	for slot, ns in pairs(slots) do
 		local cur = current[slot]
+		ns.current = cur
 		if not cur or cur.item.id ~= ns.item.id or cur.item.loc ~= ns.item.loc then
 			ns.changedItem = true
 			ns.changedGems = #ns.gems > 0
@@ -616,18 +628,11 @@ end
 
 function O:notes(slots)
 	local out = {}
-	if slots[6] and slots[6].needsBuckle then
-		out[#out + 1] = "Поясу нужна «Вечная пряжка» — это ещё одно гнездо."
-	end
 	for _, slot in ipairs(sortedKeys(slots)) do
 		local s = slots[slot]
 		if s.item.loc == "K" and s.changedItem then
 			out[#out + 1] = string.format("%s: вещь лежит в банке.", Rules.slotNames[slot])
 		end
-	end
-	local eq = Character.Equipped(self.c)
-	if eq[13] or eq[14] then
-		out[#out + 1] = "Аксессуары не меняю: их сила в проках, которые веса не описывают."
 	end
 	return out
 end
@@ -658,6 +663,18 @@ function Optimizer.Run(c, data, tank, yield)
 	o:hillClimb(best)
 	local after = o:totals(best)
 	o:markChanges(best, current)
+	local beforeStats, afterStats = o:gearStats(current), o:gearStats(best)
+	local bis = {}
+	local alternatives = {}
+	for slot, name in pairs(Rules.bisSlots) do
+		local p = plan.slots[name]
+		if p and p.items then
+			-- rings and trinkets: the second slot shows the second item
+			local index = (slot == 12 or slot == 14) and 2 or 1
+			bis[slot] = p.items[index] or p.items[1]
+			alternatives[slot] = p.items
+		end
+	end
 
 	return {
 		phase = data.phase,
@@ -671,6 +688,11 @@ function Optimizer.Run(c, data, tank, yield)
 		after = after,
 		notes = o:notes(best),
 		evals = o.evals,
+		beforeStats = beforeStats,
+		afterStats = afterStats,
+		weights = w,
+		bis = bis,
+		alternatives = alternatives,
 	}
 end
 
@@ -710,23 +732,89 @@ function Optimizer.Body(c, r)
 end
 
 -- View converts a result into the table SetupView renders.
+local function enchantRef(e)
+	local src = e and e.source or ""
+	return string.match(src, "^spell:") and "s" or (string.match(src, "^item:") and "i" or ""),
+		tonumber(string.match(src, ":(%d+)$") or "")
+end
+
+-- Stats shown in the "now / after" table: the spec's most valuable ones.
+local SKIP_IN_TABLE = { HIT = true, EXP = true, MHDPS = true, OHDPS = true, RDPS = true, FAP = true, HP = true }
+local function tableStats(w)
+	local codes = {}
+	for code, weight in pairs(w) do
+		if not SKIP_IN_TABLE[code] and weight > 0 then codes[#codes + 1] = code end
+	end
+	table.sort(codes, function(a, b)
+		if w[a] ~= w[b] then return w[a] > w[b] end
+		return a < b
+	end)
+	local out = {}
+	for i = 1, math.min(7, #codes) do out[i] = codes[i] end
+	return out
+end
+
+-- Off-spec items: a noticeable part of the item's stats is worthless for
+-- the spec (weight 0), e.g. intellect and spell power on a feral ring.
+-- Stamina and armor are useful to everyone and are not judged.
+local JUDGED = { "STR", "AGI", "INT", "SPI", "AP", "SP", "MP5", "HIT", "CRIT", "HASTE", "EXP", "ARP",
+	"DEF", "DODGE", "PARRY", "BLOCK", "BLOCKV", "RESIL" }
+local OFFSPEC_SHARE = 0.3
+
+local function offSpec(stats, w)
+	local total, wasted, codes = 0, 0, {}
+	for _, code in ipairs(JUDGED) do
+		local x = stats[code] or 0
+		if x > 0 then
+			-- attack and spell power come in bigger numbers than ratings
+			local points = (code == "AP" or code == "SP") and x / 2 or x
+			total = total + points
+			if (w[code] or 0) <= 0 then
+				wasted = wasted + points
+				codes[#codes + 1] = code
+			end
+		end
+	end
+	if total > 0 and wasted / total >= OFFSPEC_SHARE then return codes end
+	return nil
+end
+
 function Optimizer.View(c, r)
 	local view = { name = c.name, realm = c.realm, spec = r.specLabel, phase = r.phase, caps = {}, slots = {},
-		notes = r.notes, canTank = r.canTank, tank = r.tank }
-	if r.after.hitCap > 0 then view.caps.hit = { before = r.before.hitPct, after = r.after.hitPct, cap = r.after.hitCap } end
-	if r.after.expCap > 0 then view.caps.exp = { before = r.before.expSkill, after = r.after.expSkill, cap = r.after.expCap } end
+		notes = r.notes, canTank = r.canTank, tank = r.tank, stats = {} }
+	if r.after.hitCap > 0 then
+		view.caps.hit = { before = r.before.hitPct, after = r.after.hitPct, cap = r.after.hitCap,
+			rating = r.after.hitRating, talent = r.after.hitTalent }
+	end
+	if r.after.expCap > 0 then
+		view.caps.exp = { before = r.before.expSkill, after = r.after.expSkill, cap = r.after.expCap,
+			rating = r.after.expRating, talent = r.after.expTalent }
+	end
+	for _, code in ipairs(tableStats(r.weights or {})) do
+		view.stats[#view.stats + 1] = { code = code, before = (r.beforeStats or {})[code] or 0, after = (r.afterStats or {})[code] or 0 }
+	end
 	for slot, s in pairs(r.slots) do
-		local src = s.enchant.source or ""
+		local kind, source = enchantRef(s.enchant)
 		local gems = {}
 		for i, g in ipairs(s.gems) do gems[i] = g.id end
-		view.slots[slot] = {
+		local v = {
 			slot = slot, item = s.item.id, loc = s.item.loc, where = s.item.slot, enchant = s.enchant.id,
-			enchantKind = string.match(src, "^spell:") and "s" or (string.match(src, "^item:") and "i" or ""),
-			enchantSource = tonumber(string.match(src, ":(%d+)$") or ""),
+			enchantKind = kind, enchantSource = source,
 			gems = gems, sockets = s.sockets,
 			changedItem = s.changedItem, changedEnchant = s.changedEnchant, changedGems = s.changedGems,
-			buckle = s.needsBuckle,
+			buckle = s.needsBuckle, bis = r.bis and r.bis[slot],
+			offSpec = offSpec(s.item.stats, r.weights or {}),
+			alternatives = r.alternatives and r.alternatives[slot],
 		}
+		-- what is on the item now, to show what gets replaced
+		local cur = s.current
+		if cur and not s.changedItem then
+			v.oldGems = {}
+			for i = 1, 4 do v.oldGems[i] = cur.item.gems[i] or 0 end
+			v.oldEnchant = cur.item.enchant
+			v.oldEnchantKind, v.oldEnchantSource = enchantRef(cur.enchant)
+		end
+		view.slots[slot] = v
 	end
 	return view
 end

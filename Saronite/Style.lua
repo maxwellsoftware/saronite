@@ -201,3 +201,43 @@ function Style.QualityColor(quality)
 	if c then return c.r, c.g, c.b end
 	return 1, 1, 1
 end
+
+-- Corner grip: drag to scale the window as a whole (the layout stays
+-- intact). The scale is saved per window key.
+function Style.ScaleGrip(frame, key, default)
+	SaroniteDB.scale = SaroniteDB.scale or {}
+	frame:SetScale(SaroniteDB.scale[key] or default or 1)
+
+	local grip = CreateFrame("Button", nil, frame)
+	grip:SetWidth(16)
+	grip:SetHeight(16)
+	grip:SetPoint("BOTTOMRIGHT", -2, 2)
+	grip:SetNormalTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Up")
+	grip:SetHighlightTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Highlight")
+	grip:SetPushedTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Down")
+
+	local absLeft, absTop
+	local function pin()
+		-- keep the top-left corner where it is on screen while scaling
+		local eff = frame:GetEffectiveScale()
+		frame:ClearAllPoints()
+		frame:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", absLeft / eff, absTop / eff)
+	end
+
+	grip:SetScript("OnMouseDown", function()
+		local eff = frame:GetEffectiveScale()
+		absLeft, absTop = frame:GetLeft() * eff, frame:GetTop() * eff
+		grip:SetScript("OnUpdate", function()
+			local x = GetCursorPosition()
+			local width = math.max(50, x - absLeft)
+			local scale = width / frame:GetWidth() / UIParent:GetEffectiveScale()
+			frame:SetScale(math.min(2, math.max(0.7, scale)))
+			pin()
+		end)
+	end)
+	grip:SetScript("OnMouseUp", function()
+		grip:SetScript("OnUpdate", nil)
+		SaroniteDB.scale[key] = frame:GetScale()
+	end)
+	return grip
+end

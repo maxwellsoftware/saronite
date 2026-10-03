@@ -64,6 +64,7 @@ end
 
 local function create()
 	window = Style.Window("SaroniteFrame", 560, 300, "")
+	Style.ScaleGrip(window, "main", 1.2)
 
 	area = Style.EditArea(window)
 	area:SetPoint("TOPLEFT", 10, -40)

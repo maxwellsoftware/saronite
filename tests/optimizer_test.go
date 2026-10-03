@@ -124,3 +124,51 @@ func TestPlannerRunsOverFrames(t *testing.T) {
 	a.noErrors(t)
 	t.Logf("finished after %v frames", ticks)
 }
+
+// The setup window data for the real feral druid: the caster ring is
+// flagged as off-spec with BiS alternatives, caps carry the breakdown and
+// the stats table lists the spec's stats.
+func TestViewFlagsOffSpecItems(t *testing.T) {
+	a := load(t, "")
+	raw, _ := os.ReadFile("testdata/real_druid_feral.txt")
+	character := a.ns.RawGetString("Character").(*lua.LTable)
+	optimizer := a.ns.RawGetString("Optimizer").(*lua.LTable)
+	data := a.ns.RawGetString("Data").(*lua.LTable).RawGetString("phases").(*lua.LTable).RawGetString("T7")
+
+	ch := a.callFn(t, character.RawGetString("FromExportString"), lua.LString(raw))[0]
+	res := a.callFn(t, optimizer.RawGetString("Run"), ch, data, lua.LFalse)[0]
+	view := a.callFn(t, optimizer.RawGetString("View"), ch, res)[0].(*lua.LTable)
+
+	slots := view.RawGetString("slots").(*lua.LTable)
+	ring := slots.RawGetInt(11).(*lua.LTable)
+	off, ok := ring.RawGetString("offSpec").(*lua.LTable)
+	if !ok {
+		t.Fatal("caster ring (int + spell power) on a feral druid must be off-spec")
+	}
+	var codes []string
+	off.ForEach(func(_, v lua.LValue) { codes = append(codes, v.String()) })
+	if strings.Join(codes, ",") != "INT,SP" {
+		t.Errorf("wasted stats = %v", codes)
+	}
+	if ring.RawGetString("alternatives").(*lua.LTable).Len() < 3 {
+		t.Error("no BiS alternatives for the ring")
+	}
+	if slots.RawGetInt(1).(*lua.LTable).RawGetString("offSpec") != lua.LNil {
+		t.Error("the feral helmet is not off-spec")
+	}
+	if slots.RawGetInt(17) != lua.LNil {
+		t.Error("empty off hand must not be in the view")
+	}
+
+	hit := view.RawGetString("caps").(*lua.LTable).RawGetString("hit").(*lua.LTable)
+	if lua.LVAsNumber(hit.RawGetString("after")) < 8 || hit.RawGetString("rating") == lua.LNil {
+		t.Errorf("hit cap block: after=%v rating=%v", hit.RawGetString("after"), hit.RawGetString("rating"))
+	}
+	if view.RawGetString("stats").(*lua.LTable).Len() == 0 {
+		t.Error("stats table is empty")
+	}
+
+	sv := a.ns.RawGetString("SetupView").(*lua.LTable)
+	a.callFn(t, sv.RawGetString("Show"), view)
+	a.noErrors(t)
+}

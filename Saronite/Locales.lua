@@ -38,7 +38,29 @@ local L = {
 	BUCKLE = "+ belt buckle",
 	CAP_HIT = "Hit",
 	CAP_EXP = "Expertise",
-	CHANGES = "Swap items: %d\nEnchants: %d · Gems in items: %d",
+	CHANGES = "Changes: items %d · enchants %d · gems in %d items",
+	TIP_EQUIP = "Equip this item",
+	TIP_BIS = "BiS of phase %s for this slot",
+	TIP_BUCKLE = "Belt buckle socket (Eternal Belt Buckle)",
+	TIP_REPLACE = "Replaces: %s",
+	TIP_INSERT = "Insert into the empty socket",
+	TIP_APPLY = "Apply this enchant",
+	TIP_OFFSPEC = "Not for your spec: %s is wasted",
+	TIP_ALTERNATIVES = "Phase %s BiS options for this slot:",
+	NOTE_OFFSPEC = "Not for your spec: %s — see the BiS options in the item tooltip.",
+	OLD_ENCHANT = "the current enchant",
+	CAP_OF = "cap %s",
+	CAP_DONE = "cap reached",
+	CAP_SHORT = "below the cap",
+	HIT_FROM = "gear %d rating + talents/race %.0f%%",
+	EXP_FROM = "gear %d rating + talents %d",
+	HIT_HELP = "Chance to hit a raid boss. Over the cap hit does nothing (except auto attacks with two weapons).",
+	EXP_HELP = "Removes the boss's dodges; 26 removes all of them. Tanks gain up to 56 (parries).",
+	GEAR_STATS = "From gear: now » after",
+	STAT_STR = "Strength", STAT_AGI = "Agility", STAT_STA = "Stamina", STAT_INT = "Intellect", STAT_SPI = "Spirit",
+	STAT_AP = "Attack power", STAT_SP = "Spell power", STAT_CRIT = "Crit rating", STAT_HASTE = "Haste rating",
+	STAT_ARP = "Armor pen.", STAT_DEF = "Defense", STAT_DODGE = "Dodge", STAT_PARRY = "Parry", STAT_BLOCK = "Block",
+	STAT_BLOCKV = "Block value", STAT_MP5 = "Mana per 5 s", STAT_ARMOR = "Armor", STAT_RESIL = "Resilience",
 }
 
 if GetLocale() == "ruRU" then
@@ -77,7 +99,30 @@ if GetLocale() == "ruRU" then
 	L.BUCKLE = "+ пряжка"
 	L.CAP_HIT = "Меткость"
 	L.CAP_EXP = "Мастерство"
-	L.CHANGES = "Заменить вещей: %d\nЧары: %d · Камни в вещах: %d"
+	L.CHANGES = "Изменений: вещей %d · чар %d · камни в %d вещах"
+	L.TIP_EQUIP = "Надень эту вещь"
+	L.TIP_BIS = "BiS фазы %s для этого слота"
+	L.TIP_BUCKLE = "Гнездо пряжки (Вечная пряжка)"
+	L.TIP_REPLACE = "Вместо: %s"
+	L.TIP_INSERT = "Вставить в пустое гнездо"
+	L.TIP_APPLY = "Наложить эти чары"
+	L.TIP_OFFSPEC = "Не для твоего спека: пропадают %s"
+	L.TIP_ALTERNATIVES = "Варианты из BiS-списка фазы %s:"
+	L.NOTE_OFFSPEC = "Не по спеку: %s — варианты замены в подсказке вещи."
+	L.OLD_ENCHANT = "текущих чар"
+	L.CAP_OF = "кап %s"
+	L.CAP_DONE = "кап закрыт"
+	L.CAP_SHORT = "ниже капа"
+	L.HIT_FROM = "экипировка %d рейтинга + таланты/раса %.0f%%"
+	L.EXP_FROM = "экипировка %d рейтинга + таланты %d"
+	L.HIT_HELP = "Шанс попасть по рейд-боссу. Выше капа меткость не нужна (кроме автоатак с двумя оружиями)."
+	L.EXP_HELP = "Убирает уклонения босса, 26 — все. Танку полезно до 56 (парирования)."
+	L.GEAR_STATS = "С экипировки: сейчас » после"
+	L.STAT_STR, L.STAT_AGI, L.STAT_STA, L.STAT_INT, L.STAT_SPI = "Сила", "Ловкость", "Выносливость", "Интеллект", "Дух"
+	L.STAT_AP, L.STAT_SP, L.STAT_CRIT, L.STAT_HASTE = "Сила атаки", "Сила заклинаний", "Рейтинг крита", "Рейтинг скорости"
+	L.STAT_ARP, L.STAT_DEF, L.STAT_DODGE, L.STAT_PARRY = "Пробивание брони", "Защита", "Уклонение", "Парирование"
+	L.STAT_BLOCK, L.STAT_BLOCKV, L.STAT_MP5, L.STAT_ARMOR = "Блок", "Показатель блока", "Мана за 5 сек", "Броня"
+	L.STAT_RESIL = "Устойчивость"
 end
 
 ns.L = L
