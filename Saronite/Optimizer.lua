@@ -694,6 +694,8 @@ function Optimizer.Run(c, data, tank, yield)
 		weights = w,
 		bis = bis,
 		alternatives = alternatives,
+		plan = plan,
+		data = data,
 	}
 end
 
@@ -791,10 +793,48 @@ end
 
 -- Alternatives for a slot: the phase BiS list without the current item and
 -- the BiS shown next to it.
-local function alternativesFor(items, current, bis)
+local function alternativesFor(items, current)
 	local out = {}
 	for _, id in ipairs(items or {}) do
-		if id ~= current and id ~= bis and #out < 2 then out[#out + 1] = id end
+		if id ~= current and #out < 2 then out[#out + 1] = id end
+	end
+	return out
+end
+
+-- The phase BiS list of the spec, laid out per inventory slot: the item,
+-- the list's gems and enchant, up to 5 more items from the list.
+local function planSlot(plan, slot)
+	local p = plan.slots[Rules.bisSlots[slot]]
+	if not p and slot == 18 then p = plan.slots.Relic end
+	return p
+end
+
+local function bisView(c, r)
+	local out = { slots = {}, owned = 0, total = 0 }
+	if not r.plan then return out end
+	local have = {}
+	for _, it in ipairs(c.items) do have[it.id] = true end
+	for slot in pairs(Rules.bisSlots) do
+		local p = planSlot(r.plan, slot)
+		local pair = slot == 11 or slot == 12 or slot == 13 or slot == 14
+		local main = p and p.items and p.items[(slot == 12 or slot == 14) and 2 or 1]
+		if main then
+			local alts = {}
+			for i, id in ipairs(p.items) do
+				local isMain = pair and i <= 2 or (not pair and i == 1)
+				if not isMain and #alts < 5 then alts[#alts + 1] = id end
+			end
+			local kind, source = enchantRef(r.data.enchants[p.enchant or 0])
+			local gems = {}
+			for i, g in ipairs(p.gems or {}) do gems[i] = g end
+			out.slots[slot] = {
+				slot = slot, item = main, gems = gems, sockets = "",
+				enchant = p.enchant or 0, enchantKind = kind, enchantSource = source,
+				alternatives = alts, owned = have[main] == true,
+			}
+			out.total = out.total + 1
+			if have[main] then out.owned = out.owned + 1 end
+		end
 	end
 	return out
 end
@@ -804,6 +844,7 @@ function Optimizer.View(c, r)
 	local view = { name = c.name, realm = c.realm, spec = localLabel(r), phase = r.phase, caps = {}, slots = {},
 		notes = {}, canTank = r.canTank, tank = r.tank, stats = {} }
 	local weakLevel = Rules.weakItemLevel[r.phase] or 0
+	view.bis = bisView(c, r)
 	if r.after.hitCap > 0 then
 		view.caps.hit = { before = r.before.hitPct, after = r.after.hitPct, cap = r.after.hitCap,
 			rating = r.after.hitRating, talent = r.after.hitTalent }
@@ -829,7 +870,7 @@ function Optimizer.View(c, r)
 			weak = (s.item.quality >= 0 and s.item.quality <= 2) or (s.item.ilvl > 0 and s.item.ilvl < weakLevel),
 		}
 		if v.offSpec or v.weak then
-			v.alternatives = alternativesFor(r.alternatives and r.alternatives[slot], s.item.id, v.bis)
+			v.alternatives = alternativesFor(r.alternatives and r.alternatives[slot], s.item.id)
 		end
 		if s.item.loc == "K" and s.changedItem then
 			view.notes[#view.notes + 1] = string.format(L.NOTE_BANK, L.SLOTS[slot] or tostring(slot))

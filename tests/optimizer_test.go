@@ -196,7 +196,87 @@ func TestEnglishClientHasNoRussianTexts(t *testing.T) {
 	a.callFn(t, sv.RawGetString("Show"), view)
 	a.noErrors(t)
 
-	// every text set on any frame
+	a.noRussian(t)
+}
+
+func TestBisTabAndRoleSelect(t *testing.T) {
+	a := load(t, `FAKE.locale = "enUS"`)
+	raw, _ := os.ReadFile("testdata/real_druid_feral.txt")
+	character := a.ns.RawGetString("Character").(*lua.LTable)
+	optimizer := a.ns.RawGetString("Optimizer").(*lua.LTable)
+	data := a.ns.RawGetString("Data").(*lua.LTable).RawGetString("phases").(*lua.LTable).RawGetString("T7")
+
+	ch := a.callFn(t, character.RawGetString("FromExportString"), lua.LString(raw))[0]
+	res := a.callFn(t, optimizer.RawGetString("Run"), ch, data, lua.LFalse)[0]
+	view := a.callFn(t, optimizer.RawGetString("View"), ch, res)[0].(*lua.LTable)
+
+	bis := view.RawGetString("bis").(*lua.LTable)
+	slots := bis.RawGetString("slots").(*lua.LTable)
+	head := slots.RawGetInt(1).(*lua.LTable)
+	if head.RawGetString("enchantSource") == lua.LNil || head.RawGetString("gems").(*lua.LTable).Len() == 0 {
+		t.Error("BiS head must carry the list's enchant and gems")
+	}
+	if n := head.RawGetString("alternatives").(*lua.LTable).Len(); n == 0 || n > 5 {
+		t.Errorf("BiS head alternatives = %d, want 1..5", n)
+	}
+	ring1 := slots.RawGetInt(11).(*lua.LTable).RawGetString("item")
+	ring2 := slots.RawGetInt(12).(*lua.LTable).RawGetString("item")
+	if ring1 == ring2 {
+		t.Error("both BiS rings show the same item")
+	}
+	owned, total := lua.LVAsNumber(bis.RawGetString("owned")), lua.LVAsNumber(bis.RawGetString("total"))
+	if total < 15 || owned > total {
+		t.Errorf("owned %v of %v", owned, total)
+	}
+
+	// drop source data
+	sources := a.ns.RawGetString("Data").(*lua.LTable).RawGetString("sources").(*lua.LTable)
+	names := a.ns.RawGetString("Data").(*lua.LTable).RawGetString("sourceNames").(*lua.LTable)
+	cloak := sources.RawGetInt(40403).(*lua.LTable)
+	if got := names.RawGetInt(int(lua.LVAsNumber(cloak.RawGetInt(1)))).String(); got != "Naxxramas (25) — Kel'Thuzad" {
+		t.Errorf("cloak source = %q", got)
+	}
+
+	// render both tabs and use the role select
+	if err := a.L.DoString(`ROLE_CALLS = {}`); err != nil {
+		t.Fatal(err)
+	}
+	sv := a.ns.RawGetString("SetupView").(*lua.LTable)
+	role := a.L.NewFunction(func(L *lua.LState) int {
+		a.L.GetGlobal("ROLE_CALLS").(*lua.LTable).Append(L.Get(1))
+		return 0
+	})
+	a.callFn(t, sv.RawGetString("Show"), view, role)
+	a.callFn(t, sv.RawGetString("SelectTab"), lua.LString("bis"))
+	a.noErrors(t)
+	a.noRussian(t)
+
+	err := a.L.DoString(`
+		-- the role buttons: the selected one (DPS) does nothing, tank recomputes
+		local clicked = 0
+		for _, f in ipairs(FRAMES) do
+			local label = rawget(f, "label")
+			local text = label and rawget(label, "text")
+			if (text == "DPS" or text == "tank") and f.scripts.OnClick then
+				f.scripts.OnClick(f)
+				clicked = clicked + 1
+			end
+		end
+		CLICKED = clicked
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	calls := a.L.GetGlobal("ROLE_CALLS").(*lua.LTable)
+	if lua.LVAsNumber(a.L.GetGlobal("CLICKED")) != 2 || calls.Len() != 1 || calls.RawGetInt(1) != lua.LTrue {
+		t.Errorf("role select: clicked %v, calls %d", a.L.GetGlobal("CLICKED"), calls.Len())
+	}
+	a.noErrors(t)
+}
+
+// noRussian fails if any text on any frame contains Cyrillic (enUS tests).
+func (a *addon) noRussian(t *testing.T) {
+	t.Helper()
 	err := a.L.DoString(`
 		CYRILLIC = {}
 		local function scan(v, seen)
@@ -204,14 +284,15 @@ func TestEnglishClientHasNoRussianTexts(t *testing.T) {
 			seen[v] = true
 			local text = rawget(v, "text")
 			if type(text) == "string" and string.find(text, "[\208\209]") then CYRILLIC[#CYRILLIC + 1] = text end
-			for k, x in pairs(v) do if type(x) == "table" then scan(x, seen) end end
+			for _, x in pairs(v) do if type(x) == "table" then scan(x, seen) end end
 		end
-		scan(SaroniteSetupFrame, {})
-		for _, f in ipairs(FRAMES) do scan(f, {}) end
+		local seen = {}
+		for _, f in ipairs(FRAMES) do scan(f, seen) end
 	`)
 	if err != nil {
 		t.Fatal(err)
 	}
-	cyr := a.L.GetGlobal("CYRILLIC").(*lua.LTable)
-	cyr.ForEach(func(_, v lua.LValue) { t.Errorf("Russian text on enUS client: %q", v.String()) })
+	a.L.GetGlobal("CYRILLIC").(*lua.LTable).ForEach(func(_, v lua.LValue) {
+		t.Errorf("Russian text on enUS client: %q", v.String())
+	})
 }

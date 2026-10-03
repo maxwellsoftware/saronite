@@ -153,8 +153,17 @@ end
 local function CreateCharacterButton()
 	if not PaperDollFrame then return end
 
-	local button = Style.Button(PaperDollFrame, L.BUTTON, 72, 20)
+	local button = Style.Button(PaperDollFrame, L.BUTTON, 88, 24)
 	PaperDollFrame.saroniteButton = button
+	-- visible on the dark character sheet: tinted background, accent border
+	-- and label
+	local a = Style.color.accent
+	local function idle(self)
+		self:SetBackdropColor(a[1] * 0.22, a[2] * 0.22, a[3] * 0.22, 0.95)
+		self:SetBackdropBorderColor(a[1], a[2], a[3], 1)
+	end
+	button.label:SetTextColor(a[1], a[2], a[3], 1)
+	idle(button)
 	button:SetMovable(true)
 	button:RegisterForDrag("LeftButton")
 
@@ -192,16 +201,15 @@ local function CreateCharacterButton()
 		SaroniteDB.buttonPos = { x = x, y = y }
 	end)
 
-	local onEnter, onLeave = button:GetScript("OnEnter"), button:GetScript("OnLeave")
 	button:SetScript("OnEnter", function(self)
-		onEnter(self)
+		self:SetBackdropColor(a[1] * 0.4, a[2] * 0.4, a[3] * 0.4, 1)
 		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
 		GameTooltip:SetText("Saronite")
 		GameTooltip:AddLine(L.BUTTON_TOOLTIP, 1, 1, 1, true)
 		GameTooltip:Show()
 	end)
 	button:SetScript("OnLeave", function(self)
-		onLeave(self)
+		idle(self)
 		GameTooltip:Hide()
 	end)
 end

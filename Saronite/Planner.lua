@@ -41,7 +41,7 @@ function Planner.Compute(c, tank)
 		setTankPref(c, result.canTank and result.tank)
 		local view = ns.Optimizer.View(c, result)
 		SaroniteDB.lastView = view
-		ns.SetupView.Show(view, function() Planner.Compute(c, not result.tank) end)
+		ns.SetupView.Show(view, function(tank) Planner.Compute(c, tank) end)
 	end)
 end
 

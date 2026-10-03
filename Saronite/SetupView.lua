@@ -1,6 +1,8 @@
--- Renders a setup like a character sheet: items with gems, enchants and the
--- phase BiS item for comparison, changes highlighted; caps and the gear
--- stats "now / after" in the middle.
+-- The setup window, two tabs in a character-sheet layout:
+--   Current optimization — the best setup from your gear: items with gems
+--     and enchants, changes highlighted, alternatives for off-spec or weak
+--     items; caps and gear stats "now / after" in the middle.
+--   BiS — the phase BiS list of the spec with its gems and enchants.
 local _, ns = ...
 
 local L = ns.L
@@ -12,21 +14,26 @@ local LEFT = { 1, 2, 3, 15, 5, 9 }
 local RIGHT = { 10, 6, 7, 8, 11, 12, 13, 14 }
 local BOTTOM = { 16, 17, 18 }
 
-local ICON, SMALL, BIS, ALT = 38, 16, 24, 20
+local ICON, SMALL, ALT = 38, 16, 18
+local ALTS = 5 -- alternatives per slot on the BiS tab (2 on the current tab)
 local ROW = 54 -- vertical step between items
-local COLUMN = 350
+local COLUMN = 370
 local MARGIN = 16
-local WIDTH, HEIGHT = 1060, 560
+local TOP = 82 -- title bar + tabs
+local WIDTH, HEIGHT = 1100, 600
 local DEFAULT_SCALE = 1
--- outer zone, from the window edge inwards: 2 alternatives, BiS, the item
-local ALT_ZONE = 2 * (ALT + 4)
-local OUTER = ALT_ZONE + 6 + BIS + 12
+-- outer zone, from the window edge inwards: alternatives, then the item
+local ALT_ZONE = ALTS * (ALT + 3)
+local OUTER = ALT_ZONE + 10
 local NAME_WIDTH = COLUMN - OUTER - ICON - 10
+local PANEL_WIDTH = WIDTH - 2 * COLUMN - 2 * MARGIN - 48
 
 local QUESTION = "Interface\\Icons\\INV_Misc_QuestionMark"
 
-local window, rows, panel, roleButton
-local current, onToggleRole
+local window, rows, tabs, roleButtons
+local center, panel, statHeader, statRows, footer
+local current, onRole
+local tab = "current"
 local pending = 0 -- refresh attempts left while item data loads
 
 -- Items the client has not cached yet are requested from the server by
@@ -99,6 +106,21 @@ end
 
 local accent, warn = Style.color.accent, Style.color.warn
 
+-- "Drops: Naxxramas (25) — Kel'Thuzad" lines for an item tooltip.
+local function sourceLines(id, lines)
+	lines = lines or {}
+	local refs = ns.Data.sources and ns.Data.sources[id]
+	if refs then
+		for i, ref in ipairs(refs) do
+			if i > 3 then break end
+			lines[#lines + 1] = { L.SOURCE .. " " .. (ns.Data.sourceNames[ref] or "?"), 0.75, 0.75, 0.8 }
+		end
+	end
+	return lines
+end
+
+-- Item rows ------------------------------------------------------------------
+
 local function newRow(parent, alignRight)
 	local row = CreateFrame("Frame", nil, parent)
 	row:SetWidth(COLUMN)
@@ -115,15 +137,9 @@ local function newRow(parent, alignRight)
 	row.detail:SetHeight(15)
 	row.detail:SetTextColor(unpack(Style.color.dim))
 	row.alts = {}
-	for i = 1, 2 do row.alts[i] = Style.Icon(row, ALT) end
-	row.altLabel = Style.Text(row, 9)
+	for i = 1, ALTS do row.alts[i] = Style.Icon(row, ALT) end
+	row.altLabel = Style.Text(row, 10)
 	row.altLabel:SetText(L.ALTERNATIVE)
-	row.altLabel:SetTextColor(unpack(Style.color.warn))
-	row.bis = Style.Icon(row, BIS)
-	row.bisLabel = Style.Text(row.bis, 10)
-	row.bisLabel:SetText("BiS")
-	row.bisLabel:SetPoint("BOTTOM", row.bis, "TOP", 0, 1)
-	row.bisLabel:SetTextColor(unpack(Style.color.dim))
 
 	row.gems = {}
 	for i = 1, 4 do row.gems[i] = Style.Icon(row, SMALL) end
@@ -133,11 +149,12 @@ local function newRow(parent, alignRight)
 	local other = alignRight and "LEFT" or "RIGHT"
 	local dir = alignRight and -1 or 1
 
-	-- outer edge: alternatives, BiS, then the item; texts grow inwards
-	row.alts[1]:SetPoint(side, row, side, (ALT + 4) * dir, -5)
-	row.alts[2]:SetPoint(side, row, side, 0, -5)
-	row.altLabel:SetPoint("BOTTOM", row.alts[1], "TOP" .. side, -2 * dir, 2)
-	row.bis:SetPoint(side, row, side, (ALT_ZONE + 6) * dir, -5)
+	-- outer edge: alternatives (the first one next to the item), then the
+	-- item; texts grow inwards
+	for i = 1, ALTS do
+		row.alts[i]:SetPoint(side, row, side, (ALTS - i) * (ALT + 3) * dir, -6)
+	end
+	row.altLabel:SetPoint("BOTTOM" .. other, row.alts[1], "TOP" .. other, 0, 2)
 	row.icon:SetPoint(side, row, side, OUTER * dir, 0)
 	row.name:SetPoint("TOP" .. side, row.icon, "TOP" .. other, 8 * dir, -2)
 	row.name:SetJustifyH(side)
@@ -149,6 +166,14 @@ local function newRow(parent, alignRight)
 		local s = row.slot
 		if not s then return nil end
 		local lines = {}
+		if tab == "bis" then
+			if s.owned then
+				lines[#lines + 1] = { L.TIP_OWNED, accent[1], accent[2], accent[3] }
+			else
+				lines[#lines + 1] = { string.format(L.TIP_BIS, current.phase or ""), accent[1], accent[2], accent[3] }
+			end
+			return "item:" .. s.item, sourceLines(s.item, lines)
+		end
 		local where = locationText(s)
 		if where then lines[#lines + 1] = { where, warn[1], warn[2], warn[3] } end
 		if s.changedItem then lines[#lines + 1] = { L.TIP_EQUIP, accent[1], accent[2], accent[3] } end
@@ -159,35 +184,32 @@ local function newRow(parent, alignRight)
 		elseif s.weak then
 			lines[#lines + 1] = { L.TIP_WEAK, warn[1], warn[2], warn[3] }
 		end
-		return "item:" .. s.item, lines
+		return "item:" .. s.item, sourceLines(s.item, lines)
 	end)
 	for i, alt in ipairs(row.alts) do
 		hoverable(alt, function()
 			local s = row.slot
 			local id = s and s.alternatives and s.alternatives[i]
 			if not id then return nil end
-			return "item:" .. id, { { string.format(L.TIP_ALT, current.phase or ""), warn[1], warn[2], warn[3] } }
+			return "item:" .. id, sourceLines(id, { { string.format(L.TIP_ALT, current.phase or ""), warn[1], warn[2], warn[3] } })
 		end)
 	end
-	hoverable(row.bis, function()
-		local s = row.slot
-		if not s or not s.bis then return nil end
-		return "item:" .. s.bis, { { string.format(L.TIP_BIS, current.phase or ""), accent[1], accent[2], accent[3] } }
-	end)
 	for i, g in ipairs(row.gems) do
 		hoverable(g, function()
 			local s = row.slot
 			local id = s and s.gems[i]
 			if not id or id == 0 then return nil end
 			local lines = {}
-			local old = s.oldGems and s.oldGems[i]
-			if s.buckle and i == #s.gems then
-				lines[#lines + 1] = { L.TIP_BUCKLE, warn[1], warn[2], warn[3] }
-			end
-			if old and old ~= 0 and old ~= id then
-				lines[#lines + 1] = { string.format(L.TIP_REPLACE, itemInfo(old) or ("#" .. old)), warn[1], warn[2], warn[3] }
-			elseif (not old or old == 0) and s.changedGems then
-				lines[#lines + 1] = { L.TIP_INSERT, accent[1], accent[2], accent[3] }
+			if tab == "current" then
+				local old = s.oldGems and s.oldGems[i]
+				if s.buckle and i == #s.gems then
+					lines[#lines + 1] = { L.TIP_BUCKLE, warn[1], warn[2], warn[3] }
+				end
+				if old and old ~= 0 and old ~= id then
+					lines[#lines + 1] = { string.format(L.TIP_REPLACE, itemInfo(old) or ("#" .. old)), warn[1], warn[2], warn[3] }
+				elseif (not old or old == 0) and s.changedGems then
+					lines[#lines + 1] = { L.TIP_INSERT, accent[1], accent[2], accent[3] }
+				end
 			end
 			return "item:" .. id, lines
 		end)
@@ -197,11 +219,13 @@ local function newRow(parent, alignRight)
 		if not s then return nil end
 		local _, _, link = enchantInfo(s.enchantKind, s.enchantSource)
 		local lines = {}
-		if s.changedEnchant and s.oldEnchant and s.oldEnchant ~= 0 then
-			local oldName = enchantInfo(s.oldEnchantKind, s.oldEnchantSource)
-			lines[#lines + 1] = { string.format(L.TIP_REPLACE, oldName or L.OLD_ENCHANT), warn[1], warn[2], warn[3] }
-		elseif s.changedEnchant then
-			lines[#lines + 1] = { L.TIP_APPLY, accent[1], accent[2], accent[3] }
+		if tab == "current" then
+			if s.changedEnchant and s.oldEnchant and s.oldEnchant ~= 0 then
+				local oldName = enchantInfo(s.oldEnchantKind, s.oldEnchantSource)
+				lines[#lines + 1] = { string.format(L.TIP_REPLACE, oldName or L.OLD_ENCHANT), warn[1], warn[2], warn[3] }
+			elseif s.changedEnchant then
+				lines[#lines + 1] = { L.TIP_APPLY, accent[1], accent[2], accent[3] }
+			end
 		end
 		return link, lines
 	end)
@@ -218,7 +242,7 @@ local function fillRow(row, slot)
 
 	local name, quality, texture = itemInfo(slot.item)
 	row.icon.texture:SetTexture(texture)
-	if slot.changedItem then
+	if slot.changedItem or slot.owned then
 		row.icon:SetBorder(unpack(accent))
 	elseif slot.offSpec or slot.weak then
 		row.icon:SetBorder(unpack(warn))
@@ -228,7 +252,7 @@ local function fillRow(row, slot)
 	row.name:SetText(name or ("#" .. slot.item))
 	row.name:SetTextColor(Style.QualityColor(quality))
 
-	-- alternatives for off-spec or weak items
+	-- alternatives on the outer side
 	local alts = slot.alternatives or {}
 	for i, alt in ipairs(row.alts) do
 		local id = alts[i]
@@ -241,17 +265,11 @@ local function fillRow(row, slot)
 			alt:Hide()
 		end
 	end
-	if #alts > 0 then row.altLabel:Show() else row.altLabel:Hide() end
-
-	-- BiS of the phase, for comparison; dimmed when it is the same item
-	if slot.bis then
-		local _, bq, btex = itemInfo(slot.bis)
-		row.bis.texture:SetTexture(btex)
-		row.bis:SetBorder(Style.QualityColor(bq))
-		row.bis:SetAlpha(slot.bis == slot.item and 0.35 or 1)
-		row.bis:Show()
+	if #alts > 0 then
+		row.altLabel:SetTextColor(unpack(tab == "bis" and Style.color.dim or warn))
+		row.altLabel:Show()
 	else
-		row.bis:Hide()
+		row.altLabel:Hide()
 	end
 
 	-- gem icons, then the enchant icon, then the enchant name / location
@@ -298,11 +316,10 @@ local function fillRow(row, slot)
 		local c = slot.changedEnchant and accent or Style.color.dim
 		parts[#parts + 1] = "|cff" .. rgbHex(c) .. enchName .. "|r"
 	end
-	local where = locationText(slot)
+	local where = tab == "current" and locationText(slot)
 	if where then parts[#parts + 1] = "|cff" .. rgbHex(warn) .. where .. "|r" end
 	row.detail:SetText(table.concat(parts, "  "))
-	-- one anchor only (a second one at another height made the text jump
-	-- onto the item name); the width is what is left of the row
+	-- one anchor only; the width is what is left of the row
 	row.detail:ClearAllPoints()
 	local anchor = enchName and row.ench or last or row.icon
 	local used = 0
@@ -319,7 +336,6 @@ local function fillRow(row, slot)
 end
 
 -- Center panel ---------------------------------------------------------------
-
 
 local function delta(before, after, fmt)
 	local d = after - before
@@ -351,9 +367,7 @@ local function capBlock(title, cap, percent, help)
 end
 
 -- Gear stats table: name | now | after | difference, numbers right-aligned.
-local PANEL_WIDTH = WIDTH - 2 * COLUMN - 2 * MARGIN - 48
 local STAT_ROWS = 8
-local center, statHeader, statRows, footer
 
 local function newStatRow(anchor, gap, size)
 	local r = {}
@@ -403,12 +417,8 @@ local function fillStats(all)
 	footer:SetPoint("TOPLEFT", last or panel, "BOTTOMLEFT", 0, -18)
 end
 
-local function render()
-	if not current then return end
-	window.caption:SetText((current.name or "") .. "  ·  " .. (current.spec or "") .. "  ·  " .. (current.phase or ""))
-	for slot, row in pairs(rows) do
-		fillRow(row, current.slots[slot])
-	end
+local function renderCurrent()
+	for slot, row in pairs(rows) do fillRow(row, current.slots[slot]) end
 
 	local caps = {}
 	if current.caps.hit then caps[#caps + 1] = capBlock(L.CAP_HIT, current.caps.hit, true, L.HIT_HELP) end
@@ -417,7 +427,6 @@ local function render()
 	fillStats(current.stats)
 
 	local blocks = {}
-
 	local items, enchants, gems = 0, 0, 0
 	for _, s in pairs(current.slots) do
 		if s.changedItem then items = items + 1 end
@@ -433,7 +442,7 @@ local function render()
 	local off = {}
 	for _, slot in ipairs({ 1, 2, 3, 15, 5, 9, 10, 6, 7, 8, 11, 12, 13, 14, 16, 17, 18 }) do
 		local s = current.slots[slot]
-		if s and s.offSpec and not s.changedItem then off[#off + 1] = L.SLOTS[slot] or tostring(slot) end
+		if s and (s.offSpec or s.weak) and not s.changedItem then off[#off + 1] = L.SLOTS[slot] or tostring(slot) end
 	end
 	if #off > 0 then
 		blocks[#blocks + 1] = "|cff" .. rgbHex(warn) .. string.format(L.NOTE_OFFSPEC, table.concat(off, ", ")) .. "|r"
@@ -443,28 +452,98 @@ local function render()
 	end
 	footer:SetText(table.concat(blocks, "\n\n"))
 	footer:Show()
+end
 
-	if current.canTank and onToggleRole then
-		roleButton.label:SetText(current.tank and L.AS_DPS or L.AS_TANK)
-		roleButton:Show()
-	else
-		roleButton:Hide()
+local function renderBis()
+	local bis = current.bis or { slots = {} }
+	for slot, row in pairs(rows) do fillRow(row, bis.slots[slot]) end
+	panel:SetText(table.concat({
+		"|cff" .. rgbHex(accent) .. string.format(L.BIS_TITLE, current.phase or "") .. "|r",
+		string.format(L.BIS_OWNED, bis.owned or 0, bis.total or 0),
+		"|cff6b6b72" .. L.BIS_HELP .. "|r",
+	}, "\n\n"))
+	fillStats(nil)
+	footer:Hide()
+end
+
+local function setRoleButtons()
+	if not current or not current.canTank or not onRole then
+		roleButtons.tank:Hide()
+		roleButtons.dps:Hide()
+		return
 	end
+	for key, b in pairs(roleButtons) do
+		local selected = (key == "tank") == (current.tank == true)
+		b.selected = selected
+		b:SetBackdropColor(unpack(selected and { accent[1] * 0.35, accent[2] * 0.35, accent[3] * 0.35, 0.95 } or Style.color.panel))
+		b:SetBackdropBorderColor(unpack(selected and accent or Style.color.border))
+		b.label:SetTextColor(unpack(selected and accent or Style.color.dim))
+		b:Show()
+	end
+end
+
+local function setTabButtons()
+	for key, b in pairs(tabs) do
+		local selected = key == tab
+		b:SetBackdropColor(unpack(selected and Style.color.hover or Style.color.panel))
+		b:SetBackdropBorderColor(unpack(selected and accent or Style.color.border))
+		b.label:SetTextColor(unpack(selected and accent or Style.color.dim))
+	end
+end
+
+local function render()
+	if not current then return end
+	window.caption:SetText((current.name or "") .. "  ·  " .. (current.spec or "") .. "  ·  " .. (current.phase or ""))
+	if tab == "bis" then renderBis() else renderCurrent() end
+	setTabButtons()
+	setRoleButtons()
 end
 
 local function create()
 	window = Style.Window("SaroniteSetupFrame", WIDTH, HEIGHT, "")
-	Style.ScaleGrip(window, "setup.v2", DEFAULT_SCALE)
+	Style.ScaleGrip(window, "setup.v3", DEFAULT_SCALE)
 	rows = {}
+
+	-- tabs under the title bar
+	tabs = {}
+	local prev
+	for _, def in ipairs({ { "current", L.TAB_CURRENT }, { "bis", L.TAB_BIS } }) do
+		local key = def[1]
+		local b = Style.Button(window, def[2], 180, 24)
+		if prev then
+			b:SetPoint("LEFT", prev, "RIGHT", 6, 0)
+		else
+			b:SetPoint("TOPLEFT", MARGIN, -40)
+		end
+		b:SetScript("OnClick", function() SetupView.SelectTab(key) end)
+		b:SetScript("OnLeave", function() setTabButtons() end)
+		tabs[key] = b
+		prev = b
+	end
+
+	-- tank / dps select
+	roleButtons = {}
+	local dps = Style.Button(window, L.ROLE_DPS, 64, 24)
+	dps:SetPoint("TOPRIGHT", -MARGIN, -40)
+	local tankB = Style.Button(window, L.ROLE_TANK, 64, 24)
+	tankB:SetPoint("RIGHT", dps, "LEFT", -4, 0)
+	roleButtons.dps, roleButtons.tank = dps, tankB
+	for key, b in pairs(roleButtons) do
+		b:SetScript("OnClick", function(self)
+			if not self.selected and onRole then ns.Safe(onRole, key == "tank") end
+		end)
+		b:SetScript("OnLeave", function() setRoleButtons() end)
+		b:Hide()
+	end
 
 	for i, slot in ipairs(LEFT) do
 		local row = newRow(window, false)
-		row:SetPoint("TOPLEFT", MARGIN, -48 - (i - 1) * ROW)
+		row:SetPoint("TOPLEFT", MARGIN, -TOP - (i - 1) * ROW)
 		rows[slot] = row
 	end
 	for i, slot in ipairs(RIGHT) do
 		local row = newRow(window, true)
-		row:SetPoint("TOPRIGHT", -MARGIN, -48 - (i - 1) * ROW)
+		row:SetPoint("TOPRIGHT", -MARGIN, -TOP - (i - 1) * ROW)
 		rows[slot] = row
 	end
 	for i, slot in ipairs(BOTTOM) do
@@ -480,7 +559,7 @@ local function create()
 	center = CreateFrame("Frame", nil, window)
 	center:SetWidth(PANEL_WIDTH)
 	center:SetHeight(10)
-	center:SetPoint("TOP", 0, -50)
+	center:SetPoint("TOP", 0, -TOP - 2)
 
 	panel = Style.Text(center, 13)
 	panel:SetPoint("TOPLEFT", center, "TOPLEFT", 0, 0)
@@ -505,13 +584,6 @@ local function create()
 	footer:SetJustifyV("TOP")
 	footer:SetSpacing(3)
 
-	roleButton = Style.Button(window, L.AS_TANK, 96, 18)
-	roleButton:SetPoint("TOPRIGHT", -32, -6)
-	roleButton:SetScript("OnClick", function()
-		if onToggleRole then ns.Safe(onToggleRole) end
-	end)
-	roleButton:Hide()
-
 	-- Refresh while uncached items arrive from the server.
 	local elapsed = 0
 	window:SetScript("OnUpdate", function(_, dt)
@@ -524,11 +596,16 @@ local function create()
 	end)
 end
 
--- Show renders a setup; toggleRole, when given, recomputes it as tank/dps.
-function SetupView.Show(setup, toggleRole)
+function SetupView.SelectTab(name)
+	tab = name == "bis" and "bis" or "current"
+	render()
+end
+
+-- Show renders a setup; role, when given, recomputes it: role(tank).
+function SetupView.Show(setup, role)
 	if not window then create() end
 	current = setup
-	onToggleRole = toggleRole
+	onRole = role
 	pending = 0
 	render()
 	window:Show()
@@ -542,7 +619,7 @@ local function message(caption, text)
 		row.slot = nil
 		row:Hide()
 	end
-	roleButton:Hide()
+	setRoleButtons()
 	panel:SetText(text)
 	fillStats(nil)
 	footer:Hide()
