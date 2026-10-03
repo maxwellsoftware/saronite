@@ -296,3 +296,78 @@ func (a *addon) noRussian(t *testing.T) {
 		t.Errorf("Russian text on enUS client: %q", v.String())
 	})
 }
+
+// Every item tooltip in the game gets the drop source, once per item, and
+// /sar sources turns it off.
+func TestGlobalTooltipSources(t *testing.T) {
+	a := load(t, `FAKE.locale = "enUS"`)
+	err := a.L.DoString(`
+		local tip = GameTooltip
+		tip.itemLink = MakeLink(40403)
+		tip.hooks.OnTooltipSetItem(tip)
+		tip.hooks.OnTooltipSetItem(tip) -- fires twice: no duplicate
+		FIRST = rawget(tip, "added") and #rawget(tip, "added") or 0
+		FIRST_LINE = rawget(tip, "added") and rawget(tip, "added")[1]
+
+		tip.hooks.OnTooltipCleared(tip)
+		rawset(tip, "added", nil)
+		SlashCmdList.SARONITE("sources")
+		tip.hooks.OnTooltipSetItem(tip)
+		AFTER_OFF = rawget(tip, "added") and #rawget(tip, "added") or 0
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := lua.LVAsNumber(a.L.GetGlobal("FIRST")); n != 1 {
+		t.Fatalf("source lines = %v, want 1", n)
+	}
+	if got := a.L.GetGlobal("FIRST_LINE").String(); got != "Drops: Naxxramas (25) — Kel'Thuzad" {
+		t.Errorf("line = %q", got)
+	}
+	if n := lua.LVAsNumber(a.L.GetGlobal("AFTER_OFF")); n != 0 {
+		t.Errorf("sources still shown after /sar sources: %v", n)
+	}
+	a.noErrors(t)
+}
+
+// The UI language can be switched independently of the client: texts follow
+// it, data read from the client (export locale) does not.
+func TestLanguageSwitch(t *testing.T) {
+	a := load(t, `FAKE.locale = "enUS"`)
+	planner := a.ns.RawGetString("Planner").(*lua.LTable)
+	a.callFn(t, planner.RawGetString("Mine"))
+	if err := a.L.DoString(`
+		for i = 1, 500 do
+			for _, f in ipairs(FRAMES) do
+				if f.scripts.OnUpdate and f ~= SaroniteSetupFrame then f.scripts.OnUpdate(f, 0.016) end
+			end
+			if SaroniteDB.lastView then break end
+		end
+		SlashCmdList.SARONITE("lang ru")
+	`); err != nil {
+		t.Fatal(err)
+	}
+	a.noErrors(t)
+	if a.L.GetGlobal("SaroniteDB").(*lua.LTable).RawGetString("lang").String() != "ru" {
+		t.Fatal("language not saved")
+	}
+	caption := a.L.GetGlobal("SaroniteSetupFrame").(*lua.LTable).RawGetString("caption").(*lua.LTable).RawGetString("text").String()
+	if !strings.Contains(caption, "Лед") {
+		t.Errorf("caption after switching to ru: %q", caption)
+	}
+
+	exp := a.ns.RawGetString("Export").(*lua.LTable)
+	snap := a.callFn(t, exp.RawGetString("Snapshot"))[0]
+	opts := a.L.NewTable()
+	body := a.callFn(t, exp.RawGetString("Serialize"), snap, opts)[0].String()
+	if !strings.Contains(body, "H|client|3.3.5|12340|enUS") {
+		t.Error("export must keep the client locale")
+	}
+
+	a.callFn(t, a.L.GetGlobal("SlashCmdList").(*lua.LTable).RawGetString("SARONITE"), lua.LString("lang en"))
+	a.noErrors(t)
+	caption = a.L.GetGlobal("SaroniteSetupFrame").(*lua.LTable).RawGetString("caption").(*lua.LTable).RawGetString("text").String()
+	if !strings.HasSuffix(caption, "Frost (DPS)  ·  T7") { // the name "Артас" is data, not UI text
+		t.Errorf("caption after switching back to en: %q", caption)
+	}
+}

@@ -786,7 +786,7 @@ local function localLabel(r)
 	local L = ns.L
 	local spec = r.spec
 	if not spec then return r.specLabel end
-	local name = GetLocale() == "ruRU" and spec.name or spec.nameEN
+	local name = ns.lang == "ru" and spec.name or spec.nameEN
 	if spec.maybeTank then name = name .. " (" .. (r.tank and L.ROLE_TANK or L.ROLE_DPS) .. ")" end
 	return name
 end
@@ -842,7 +842,8 @@ end
 function Optimizer.View(c, r)
 	local L = ns.L
 	local view = { name = c.name, realm = c.realm, spec = localLabel(r), phase = r.phase, caps = {}, slots = {},
-		notes = {}, canTank = r.canTank, tank = r.tank, stats = {} }
+		notes = {}, bankSlots = {}, canTank = r.canTank, tank = r.tank, stats = {},
+		specNames = r.spec and { ru = r.spec.name, en = r.spec.nameEN } or nil }
 	local weakLevel = Rules.weakItemLevel[r.phase] or 0
 	view.bis = bisView(c, r)
 	if r.after.hitCap > 0 then
@@ -873,7 +874,7 @@ function Optimizer.View(c, r)
 			v.alternatives = alternativesFor(r.alternatives and r.alternatives[slot], s.item.id)
 		end
 		if s.item.loc == "K" and s.changedItem then
-			view.notes[#view.notes + 1] = string.format(L.NOTE_BANK, L.SLOTS[slot] or tostring(slot))
+			view.bankSlots[#view.bankSlots + 1] = slot
 		end
 		-- what is on the item now, to show what gets replaced
 		local cur = s.current

@@ -241,3 +241,36 @@ function Style.ScaleGrip(frame, key, default)
 	end)
 	return grip
 end
+
+-- RU / EN switch for the UI language, in the title bar left of the close
+-- button. The selected language is highlighted.
+function Style.LanguageSwitch(frame)
+	local buttons = {}
+	local prev
+	for _, lang in ipairs({ "en", "ru" }) do
+		local b = Style.Button(frame, string.upper(lang), 30, 18, "latin")
+		if prev then
+			b:SetPoint("RIGHT", prev, "LEFT", -2, 0)
+		else
+			b:SetPoint("TOPRIGHT", -32, -6)
+		end
+		b:SetScript("OnClick", function()
+			if ns.lang ~= lang then ns.SwitchLanguage(lang) end
+		end)
+		b:SetScript("OnLeave", function() Style.RefreshLanguageSwitch(frame) end)
+		buttons[lang] = b
+		prev = b
+	end
+	frame.languageButtons = buttons
+	Style.RefreshLanguageSwitch(frame)
+end
+
+function Style.RefreshLanguageSwitch(frame)
+	local a = Style.color.accent
+	for lang, b in pairs(frame.languageButtons or {}) do
+		local selected = lang == ns.lang
+		b:SetBackdropColor(unpack(selected and { a[1] * 0.35, a[2] * 0.35, a[3] * 0.35, 0.95 } or Style.color.panel))
+		b:SetBackdropBorderColor(unpack(selected and a or Style.color.border))
+		b.label:SetTextColor(unpack(selected and a or Style.color.dim))
+	end
+end

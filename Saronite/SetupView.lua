@@ -79,12 +79,10 @@ local function rgbHex(c)
 	return string.format("%02x%02x%02x", c[1] * 255, c[2] * 255, c[3] * 255)
 end
 
-local STAT_NAMES = {
-	STR = L.STAT_STR, AGI = L.STAT_AGI, STA = L.STAT_STA, INT = L.STAT_INT, SPI = L.STAT_SPI,
-	AP = L.STAT_AP, SP = L.STAT_SP, CRIT = L.STAT_CRIT, HASTE = L.STAT_HASTE, ARP = L.STAT_ARP,
-	DEF = L.STAT_DEF, DODGE = L.STAT_DODGE, PARRY = L.STAT_PARRY, BLOCK = L.STAT_BLOCK,
-	BLOCKV = L.STAT_BLOCKV, MP5 = L.STAT_MP5, ARMOR = L.STAT_ARMOR, RESIL = L.STAT_RESIL,
-}
+-- resolved on use so the UI language can change at any time
+local function statName(code)
+	return L["STAT_" .. code] or code
+end
 
 local function showLink(owner, link, lines)
 	GameTooltip:SetOwner(owner, "ANCHOR_RIGHT")
@@ -106,18 +104,6 @@ end
 
 local accent, warn = Style.color.accent, Style.color.warn
 
--- "Drops: Naxxramas (25) — Kel'Thuzad" lines for an item tooltip.
-local function sourceLines(id, lines)
-	lines = lines or {}
-	local refs = ns.Data.sources and ns.Data.sources[id]
-	if refs then
-		for i, ref in ipairs(refs) do
-			if i > 3 then break end
-			lines[#lines + 1] = { L.SOURCE .. " " .. (ns.Data.sourceNames[ref] or "?"), 0.75, 0.75, 0.8 }
-		end
-	end
-	return lines
-end
 
 -- Item rows ------------------------------------------------------------------
 
@@ -172,26 +158,26 @@ local function newRow(parent, alignRight)
 			else
 				lines[#lines + 1] = { string.format(L.TIP_BIS, current.phase or ""), accent[1], accent[2], accent[3] }
 			end
-			return "item:" .. s.item, sourceLines(s.item, lines)
+			return "item:" .. s.item, lines
 		end
 		local where = locationText(s)
 		if where then lines[#lines + 1] = { where, warn[1], warn[2], warn[3] } end
 		if s.changedItem then lines[#lines + 1] = { L.TIP_EQUIP, accent[1], accent[2], accent[3] } end
 		if s.offSpec then
 			local names = {}
-			for _, code in ipairs(s.offSpec) do names[#names + 1] = STAT_NAMES[code] or code end
+			for _, code in ipairs(s.offSpec) do names[#names + 1] = statName(code) end
 			lines[#lines + 1] = { string.format(L.TIP_OFFSPEC, table.concat(names, ", ")), warn[1], warn[2], warn[3] }
 		elseif s.weak then
 			lines[#lines + 1] = { L.TIP_WEAK, warn[1], warn[2], warn[3] }
 		end
-		return "item:" .. s.item, sourceLines(s.item, lines)
+		return "item:" .. s.item, lines
 	end)
 	for i, alt in ipairs(row.alts) do
 		hoverable(alt, function()
 			local s = row.slot
 			local id = s and s.alternatives and s.alternatives[i]
 			if not id then return nil end
-			return "item:" .. id, sourceLines(id, { { string.format(L.TIP_ALT, current.phase or ""), warn[1], warn[2], warn[3] } })
+			return "item:" .. id, { { string.format(L.TIP_ALT, current.phase or ""), warn[1], warn[2], warn[3] } }
 		end)
 	end
 	for i, g in ipairs(row.gems) do
@@ -402,7 +388,7 @@ local function fillStats(all)
 	for i, r in ipairs(statRows) do
 		local st = stats[i]
 		if st then
-			r.name:SetText(STAT_NAMES[st.code] or st.code)
+			r.name:SetText(statName(st.code))
 			r.before:SetText(string.format("%d", st.before))
 			r.before:SetTextColor(unpack(Style.color.dim))
 			r.after:SetText(string.format("%d", st.after))
@@ -450,6 +436,9 @@ local function renderCurrent()
 	for _, note in ipairs(current.notes or {}) do
 		blocks[#blocks + 1] = "|cff8c8c94" .. note .. "|r"
 	end
+	for _, slot in ipairs(current.bankSlots or {}) do
+		blocks[#blocks + 1] = "|cff8c8c94" .. string.format(L.NOTE_BANK, L.SLOTS[slot] or tostring(slot)) .. "|r"
+	end
 	footer:SetText(table.concat(blocks, "\n\n"))
 	footer:Show()
 end
@@ -491,9 +480,30 @@ local function setTabButtons()
 	end
 end
 
+-- The panel is a top-left column in a setup and a centered message while
+-- calculating or on errors.
+local function panelMode(centered)
+	panel:ClearAllPoints()
+	if centered then
+		panel:SetPoint("CENTER", window, "CENTER", 0, 0)
+		panel:SetJustifyH("CENTER")
+		panel:SetJustifyV("MIDDLE")
+	else
+		panel:SetPoint("TOPLEFT", center, "TOPLEFT", 0, 0)
+		panel:SetJustifyH("LEFT")
+		panel:SetJustifyV("TOP")
+	end
+end
+
 local function render()
 	if not current then return end
-	window.caption:SetText((current.name or "") .. "  ·  " .. (current.spec or "") .. "  ·  " .. (current.phase or ""))
+	panelMode(false)
+	local spec = current.spec or ""
+	if current.specNames then
+		spec = current.specNames[ns.lang] or spec
+		if current.canTank then spec = spec .. " (" .. (current.tank and L.ROLE_TANK or L.ROLE_DPS) .. ")" end
+	end
+	window.caption:SetText((current.name or "") .. "  ·  " .. spec .. "  ·  " .. (current.phase or ""))
 	if tab == "bis" then renderBis() else renderCurrent() end
 	setTabButtons()
 	setRoleButtons()
@@ -503,6 +513,8 @@ local function create()
 	window = Style.Window("SaroniteSetupFrame", WIDTH, HEIGHT, "")
 	Style.ScaleGrip(window, "setup.v3", DEFAULT_SCALE)
 	rows = {}
+
+	Style.LanguageSwitch(window)
 
 	-- tabs under the title bar
 	tabs = {}
@@ -596,6 +608,21 @@ local function create()
 	end)
 end
 
+-- Relabel updates texts created once (tabs, role buttons, headers).
+function SetupView.Relabel()
+	if not window then return end
+	tabs.current.label:SetText(L.TAB_CURRENT)
+	tabs.bis.label:SetText(L.TAB_BIS)
+	roleButtons.tank.label:SetText(L.ROLE_TANK)
+	roleButtons.dps.label:SetText(L.ROLE_DPS)
+	statHeader.name:SetText("|cff" .. rgbHex(accent) .. L.GEAR_STATS .. "|r")
+	statHeader.before:SetText(L.COL_NOW)
+	statHeader.after:SetText(L.COL_AFTER)
+	for _, row in pairs(rows) do row.altLabel:SetText(L.ALTERNATIVE) end
+	Style.RefreshLanguageSwitch(window)
+	render()
+end
+
 function SetupView.SelectTab(name)
 	tab = name == "bis" and "bis" or "current"
 	render()
@@ -620,6 +647,7 @@ local function message(caption, text)
 		row:Hide()
 	end
 	setRoleButtons()
+	panelMode(true)
 	panel:SetText(text)
 	fillStats(nil)
 	footer:Hide()

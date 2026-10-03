@@ -1,6 +1,6 @@
 local ADDON_NAME, ns = ...
 
-ns.VERSION = "0.6.0"
+ns.VERSION = "0.7.0"
 ns.FORMAT_VERSION = 1
 
 local L = ns.L
@@ -52,7 +52,9 @@ frame:SetScript("OnEvent", function(self, event, arg1)
 	if event == "ADDON_LOADED" then
 		if arg1 == ADDON_NAME then
 			InitDB()
+			ns.SetLanguage(SaroniteDB.lang or ns.lang)
 			ns.Safe(ns.UI.Init)
+			ns.Safe(ns.Tooltip.Init)
 		end
 	elseif event == "BANKFRAME_OPENED" then
 		bankOpen = true
@@ -68,6 +70,14 @@ end)
 
 SLASH_SARONITE1 = "/sar"
 SLASH_SARONITE2 = "/saronite"
+-- SwitchLanguage changes the UI language and relabels open windows.
+function ns.SwitchLanguage(lang)
+	ns.SetLanguage(lang)
+	SaroniteDB.lang = ns.lang
+	ns.Safe(ns.UI.Relabel)
+	ns.Safe(ns.SetupView.Relabel)
+end
+
 -- Errors are printed to chat: WoW hides script errors by default and a
 -- silent failure looks like "the addon does nothing".
 function ns.Safe(fn, ...)
@@ -88,6 +98,11 @@ local function slash(msg)
 			ns.Print(string.format(L.BANK_SCANNED, #bank.items) .. " " ..
 				string.format(L.BANK_AGE, SecondsToTime(time() - bank.time)))
 		end
+	elseif msg == "lang" or msg == "lang ru" or msg == "lang en" then
+		local lang = string.match(msg, "lang (%a+)") or (ns.lang == "ru" and "en" or "ru")
+		ns.SwitchLanguage(lang)
+	elseif msg == "sources" then
+		ns.Tooltip.Toggle()
 	elseif msg == "import" then
 		ns.UI.Show("import")
 	elseif msg == "help" or msg == "?" then

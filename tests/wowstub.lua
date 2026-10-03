@@ -81,6 +81,21 @@ function frameMethods:CreateFontString()
 	return fs
 end
 function frameMethods:CreateTexture() return NewFrame() end
+-- tooltip hooks and item lines (global tooltip enhancement)
+function frameMethods:HookScript(name, fn)
+	local hooks = rawget(self, "hooks") or {}
+	rawset(self, "hooks", hooks)
+	hooks[name] = fn
+end
+function frameMethods:GetItem()
+	local link = rawget(self, "itemLink")
+	if link then return "Item", link end
+end
+function frameMethods:AddLine(text)
+	local added = rawget(self, "added") or {}
+	rawset(self, "added", added)
+	added[#added + 1] = text
+end
 function frameMethods:SetFont(path)
 	if FAKE.fonts[path] then
 		self.font = path

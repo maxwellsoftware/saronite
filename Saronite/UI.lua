@@ -65,6 +65,7 @@ end
 local function create()
 	window = Style.Window("SaroniteFrame", 560, 300, "")
 	Style.ScaleGrip(window, "main", 1.2)
+	Style.LanguageSwitch(window)
 
 	area = Style.EditArea(window)
 	area:SetPoint("TOPLEFT", 10, -40)
@@ -112,6 +113,7 @@ local function create()
 	local compute = Style.Button(window, L.COMPUTE, 150, 22)
 	compute:SetPoint("BOTTOMRIGHT", -10, 10)
 	compute.label:SetTextColor(unpack(Style.color.accent))
+	modeButtons.compute = compute
 	compute:SetScript("OnClick", function()
 		window:Hide()
 		ns.Safe(ns.Planner.Mine)
@@ -119,6 +121,7 @@ local function create()
 
 	local last = Style.Button(window, L.LAST_SETUP, 130, 22)
 	last:SetPoint("RIGHT", compute, "LEFT", -6, 0)
+	modeButtons.last = last
 	last:SetScript("OnClick", function()
 		if ns.Planner.ShowLast() then
 			window:Hide()
@@ -212,6 +215,18 @@ local function CreateCharacterButton()
 		idle(self)
 		GameTooltip:Hide()
 	end)
+end
+
+-- Relabel updates texts created once after a language switch.
+function UI.Relabel()
+	if PaperDollFrame and PaperDollFrame.saroniteButton then
+		PaperDollFrame.saroniteButton.label:SetText(L.BUTTON)
+	end
+	if not window then return end
+	modeButtons.compute.label:SetText(L.COMPUTE)
+	modeButtons.last.label:SetText(L.LAST_SETUP)
+	Style.RefreshLanguageSwitch(window)
+	if window:IsShown() then UI.Show(mode) end
 end
 
 function UI.Init()

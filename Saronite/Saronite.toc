@@ -2,7 +2,7 @@
 ## Title: Saronite
 ## Notes: Exports your gear, bags and talents for the guild gear advisor bot (Whitemane Frostmourne).
 ## Notes-ruRU: Экспорт экипировки, сумок и талантов для гир-бота гильдии (Whitemane Frostmourne).
-## Version: 0.6.0
+## Version: 0.7.0
 ## SavedVariables: SaroniteDB
 
 Libs\LibStub\LibStub.lua
@@ -18,6 +18,7 @@ Rules.lua
 Character.lua
 Optimizer.lua
 Planner.lua
+Tooltip.lua
 Scanner.lua
 Export.lua
 Import.lua
