@@ -20,6 +20,11 @@ Rules.expertiseCap = 26.0
 -- to crits from raid bosses
 Rules.defenseCap = 140.0
 Rules.defensePerPoint = 4.918498
+-- haste: rating per 1% at level 80; the global cooldown of 1.5 s drops to
+-- its floor of 1 s at +50% haste. Raid buffs assumed for the haste card:
+-- Wrath of Air Totem 5% and Swift Retribution / Improved Moonkin Form 3%.
+Rules.hastePerPct = 32.78998
+Rules.raidHaste = 1.05 * 1.03
 
 local function spec(name, role, maybeTank, nameEN)
 	return { name = name, nameEN = nameEN or name, role = role, maybeTank = maybeTank or false }

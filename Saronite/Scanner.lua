@@ -379,6 +379,10 @@ function Scanner.Stats()
 	rating("arp", CR("CR_ARMOR_PENETRATION", 25))
 	rating("defense", CR("CR_DEFENSE_SKILL", 2))
 
+	-- Total spell haste % (rating, talents and auras): the haste card
+	-- derives the part that does not come from rating.
+	s.spellHaste = Call(UnitSpellHaste, "player")
+
 	-- Hit chance from talents and auras, on top of rating.
 	s.hitMod = Call(GetHitModifier)
 	s.spellHitMod = Call(GetSpellHitModifier)

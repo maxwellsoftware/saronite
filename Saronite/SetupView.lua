@@ -74,7 +74,7 @@ local function enchantInfo(kind, source, enchantID)
 		local name, _, icon = GetSpellInfo(source)
 		return Links.EnchantName(phase, enchantID, name), icon, "spell:" .. source
 	end
-	local name, _, texture = GetItemInfo(source)
+	local name, _, _, _, _, _, _, _, _, texture = GetItemInfo(source)
 	if not name then request("item:" .. source) end
 	return Links.EnchantName(phase, enchantID, name), texture or (GetItemIcon and GetItemIcon(source)) or QUESTION,
 		"item:" .. source
@@ -372,9 +372,10 @@ local function fillCap(card, kind, cap)
 	local percent = kind == "hit"
 	local fmt = percent and "%.2f%%" or "%d"
 	local ok = cap.after + 0.005 >= cap.cap
-	local color = ok and good or warn
-	local title = ({ hit = L.CAP_HIT, exp = L.CAP_EXP, def = L.CAP_DEF })[kind]
-	card.title:SetText(colored(Style.StatColor(string.upper(kind)), title) .. "  " .. colored(dim, "?"))
+	-- haste to a 1 s GCD is a target, not a must: no warning color
+	local color = ok and good or (kind == "haste" and accent or warn)
+	local title = ({ hit = L.CAP_HIT, exp = L.CAP_EXP, def = L.CAP_DEF, haste = L.CAP_HASTE, crit = L.CAP_CRIT })[kind]
+	card.title:SetText(colored(Style.StatColor(string.upper(kind)), title))
 	local value = string.format(fmt, cap.after)
 	if math.abs(cap.after - cap.before) >= 0.005 then
 		value = colored(dim, string.format(fmt, cap.before) .. " » ") .. value
@@ -392,11 +393,22 @@ local function fillCap(card, kind, cap)
 		detail = string.format(L.EXP_FROM, cap.rating, cap.talent or 0)
 	elseif kind == "def" and cap.rating then
 		detail = string.format(L.DEF_FROM, cap.rating)
+	elseif kind == "haste" then
+		detail = string.format(L.HASTE_FROM, cap.gcdAfter or 1.5, cap.talent or 0)
+	elseif kind == "crit" then
+		detail = string.format(L.CRIT_FROM, (GetSpellInfo(cap.spell or 0)) or "", cap.after, cap.cap)
 	end
-	local state = colored(color, ok and L.CAP_DONE or L.CAP_SHORT)
+	local state
+	if kind == "haste" then
+		state = colored(color, ok and L.HASTE_DONE or L.HASTE_SHORT)
+	elseif kind == "crit" then
+		state = colored(color, ok and L.CRIT_DONE or L.CRIT_SHORT)
+	else
+		state = colored(color, ok and L.CAP_DONE or L.CAP_SHORT)
+	end
 	card.detail:SetText(detail and (state .. colored(dim, "  ·  " .. detail)) or state)
 	card.helpTitle = title
-	card.help = ({ hit = L.HIT_HELP, exp = L.EXP_HELP, def = L.DEF_HELP })[kind]
+	card.help = ({ hit = L.HIT_HELP, exp = L.EXP_HELP, def = L.DEF_HELP, haste = L.HASTE_HELP, crit = L.CRIT_HELP })[kind]
 end
 
 local function delta(before, after)
@@ -494,7 +506,7 @@ local function renderCurrent()
 
 	stackY = 0
 	local caps = 0
-	for _, kind in ipairs({ "hit", "exp", "def" }) do
+	for _, kind in ipairs({ "hit", "exp", "def", "crit", "haste" }) do
 		local cap = current.caps[kind]
 		if cap then
 			fillCap(capCards[kind], kind, cap)
@@ -676,7 +688,7 @@ local function create()
 	center:SetHeight(10)
 	center:SetPoint("TOP", 0, -TOP)
 
-	capCards = { hit = newCapCard(), exp = newCapCard(), def = newCapCard() }
+	capCards = { hit = newCapCard(), exp = newCapCard(), def = newCapCard(), crit = newCapCard(), haste = newCapCard() }
 
 	priority = Style.Text(center, 12)
 	center.priority = priority

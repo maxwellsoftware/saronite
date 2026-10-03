@@ -63,7 +63,9 @@ Other keys: `hitMod` and `spellHitMod` (hit % from talents and auras —
 **absent on 3.3.5 clients**, which lack `GetHitModifier`; the bot derives hit
 from talents itself), `expMH` `expOH`
 (expertise skill incl. talents), `ap` `rap` `sp` `heal`, `str agi sta int spi`
-(effective), `armor hp mana dodge parry block buffs`.
+(effective), `armor hp mana dodge parry block buffs`, `spellHaste` (total
+spell haste % from `UnitSpellHaste`, since addon 0.8.1; absent in older
+strings — readers must treat it as optional).
 
 ### Items (`I`)
 

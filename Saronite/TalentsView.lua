@@ -114,12 +114,16 @@ end
 local function hasGlyph(id)
 	local data = ns.Data.glyphs and ns.Data.glyphs[id]
 	if not data or not view or not view.glyphs then return false end
-	local itemName = GetItemInfo(id)
+	-- by the glyph spell, else by name: the glyph spell and item share it
+	-- (glyphs from WotLK Classic may have other ids on the server)
+	local names = { GetItemInfo(id), data[1], data[2] }
 	for _, spell in ipairs(view.glyphs) do
 		if spell and spell ~= 0 then
 			if spell == data[6] then return true end
 			local name = GetSpellInfo(spell)
-			if itemName and name == itemName then return true end
+			for _, n in pairs(names) do
+				if name and name == n then return true end
+			end
 		end
 	end
 	return false
@@ -130,9 +134,17 @@ end
 local function newCell(parent, tab, index)
 	local cell = Style.Icon(parent, CELL)
 	cell.tab, cell.index = tab, index
-	cell.rank = Style.Text(cell, 10)
-	cell.rank:SetPoint("BOTTOMRIGHT", cell, "BOTTOMRIGHT", 2, -3)
-	cell.rank:SetJustifyH("RIGHT")
+	-- rank "3/5" on a dark chip with an outline: readable on any icon
+	cell.chip = cell:CreateTexture(nil, "OVERLAY")
+	cell.chip:SetTexture("Interface\\Buttons\\WHITE8X8")
+	cell.chip:SetVertexColor(0, 0, 0, 0.8)
+	cell.chip:SetPoint("BOTTOMRIGHT", cell, "BOTTOMRIGHT", 1, -1)
+	cell.chip:SetWidth(22)
+	cell.chip:SetHeight(12)
+	cell.rank = Style.Text(cell, 11)
+	cell.rank:SetFont(Style.Font(), 11, "OUTLINE")
+	cell.rank:SetPoint("CENTER", cell.chip, "CENTER", 0, 0)
+	cell.rank:SetJustifyH("CENTER")
 	cell:EnableMouse(true)
 	cell:SetScript("OnEnter", function(self)
 		local t = self.talent
@@ -178,13 +190,22 @@ local function newGlyphRow(parent)
 	row.icon:SetScript("OnEnter", function(self)
 		if not row.id then return end
 		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-		GameTooltip:SetHyperlink("item:" .. row.id)
+		if GetItemInfo(row.id) then
+			GameTooltip:SetHyperlink("item:" .. row.id)
+		else
+			-- unknown to the client (a glyph added on the server): addon data
+			local data = ns.Data.glyphs[row.id] or {}
+			GameTooltip:AddLine(ns.lang == "ru" and data[2] or data[1] or "", 1, 1, 1)
+			GameTooltip:AddLine(ns.lang == "ru" and data[5] or data[4] or "", 0.12, 1, 0, true)
+		end
 		local c = row.owned and Style.color.good or warn
 		GameTooltip:AddLine(row.owned and L.TIP_GLYPH_HAVE or L.TIP_GLYPH_MISSING, c[1], c[2], c[3])
 		GameTooltip:Show()
 	end)
 	row.icon:SetScript("OnLeave", function() GameTooltip:Hide() end)
-	Links.Clickable(row.icon, function() return row.id and ("item:" .. row.id) or nil end)
+	Links.Clickable(row.icon, function()
+		return row.id and GetItemInfo(row.id) and ("item:" .. row.id) or nil
+	end)
 	return row
 end
 
@@ -238,11 +259,13 @@ local function renderTrees()
 					cell.rank:SetText(cell.rec .. "/" .. talent.max)
 					cell.rank:SetTextColor(unpack(cell.rec == talent.max and accent or Style.color.text))
 					cell.rank:Show()
+					cell.chip:Show()
 				else
 					cell.texture:SetDesaturated(true)
 					cell:SetAlpha(cell.mine > 0 and 0.8 or 0.35)
 					if cell.mine > 0 then cell:SetBorder(unpack(warn)) else cell:SetBorder(0, 0, 0) end
 					cell.rank:Hide()
+					cell.chip:Hide()
 				end
 				cell:Show()
 			else

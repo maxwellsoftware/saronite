@@ -882,6 +882,39 @@ function Optimizer.View(c, r)
 			rating = r.after.defRating }
 	end
 	view.role = r.spec and r.spec.role
+	local role = view.role
+	-- Haste for healers and casters: the way to a 1 s global cooldown with
+	-- raid buffs. Informational: the optimizer values haste by its weight.
+	if role == Rules.HEALER or role == Rules.CASTER then
+		local s, per = c.stats, Rules.hastePerPct
+		local gearBefore = (r.beforeStats or {}).HASTE or 0
+		local base = math.max(0, (s.hasteSpell or 0) - gearBefore)
+		-- haste from talents and auras: the sheet total without the rating part
+		local other = 0
+		if s.spellHaste and s.spellHaste > 0 then
+			other = math.max(0, (1 + s.spellHaste / 100) / (1 + (s.hasteSpellPct or 0) / 100) - 1)
+		end
+		local mult = (1 + other) * Rules.raidHaste
+		local need = math.max(1, math.ceil((1.5 / mult - 1) * 100 * per))
+		local function gcd(rating) return math.max(1, 1.5 / ((1 + rating / per / 100) * mult)) end
+		local before, after = base + gearBefore, base + ((r.afterStats or {}).HASTE or 0)
+		view.caps.haste = { before = before, after = after, cap = need, talent = other * 100,
+			gcdBefore = gcd(before), gcdAfter = gcd(after) }
+	end
+	-- Feral tanks: crit immunity from Survival of the Fittest 3/3.
+	if c.class == "DRUID" and r.tank then
+		local trees = ns.Data.talentTrees and ns.Data.talentTrees.DRUID
+		local ranks = ""
+		for _, t in ipairs(Character.ActiveTalents(c)) do
+			if t.tab == 2 then ranks = t.ranks end
+		end
+		for k, t in ipairs(trees and trees[2] and trees[2].talents or {}) do
+			if t.name == "survivalOfTheFittest" then
+				local rank = tonumber(string.sub(ranks, k, k)) or 0
+				view.caps.crit = { before = rank, after = rank, cap = t.max, spell = t.spell }
+			end
+		end
+	end
 	-- talents and glyphs tab: the class trees and what the player has now
 	view.class, view.specTab, view.sim = c.class, r.spec and r.spec.tab, r.sim
 	view.talentRanks = {}

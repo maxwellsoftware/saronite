@@ -208,6 +208,10 @@ func TestCapsByRole(t *testing.T) {
 	if tank.RawGetString("caps").(*lua.LTable).RawGetString("def") != lua.LNil {
 		t.Error("feral tanks do not need defense")
 	}
+	crit, ok := tank.RawGetString("caps").(*lua.LTable).RawGetString("crit").(*lua.LTable)
+	if !ok || lua.LVAsNumber(crit.RawGetString("cap")) != 3 {
+		t.Error("feral tank: no crit immunity (Survival of the Fittest) card")
+	}
 
 	// resto: no hit / expertise caps, the healer note instead
 	raw, _ = os.ReadFile("testdata/real_druid_feral.txt")
@@ -219,9 +223,18 @@ func TestCapsByRole(t *testing.T) {
 	if caps.RawGetString("hit") != lua.LNil || caps.RawGetString("exp") != lua.LNil {
 		t.Error("healers have no hit / expertise cap")
 	}
+	haste, ok := caps.RawGetString("haste").(*lua.LTable)
+	if !ok || lua.LVAsNumber(haste.RawGetString("cap")) < 500 || lua.LVAsNumber(haste.RawGetString("gcdAfter")) < 1 {
+		t.Errorf("healer haste card: %v", caps.RawGetString("haste"))
+	}
 	a.callFn(t, sv.RawGetString("Show"), view)
-	if texts := a.allTexts(t); !strings.Contains(texts, "У лекарей нет капа") && !strings.Contains(texts, "Healers have no hit") {
+	texts := a.allTexts(t)
+	if !strings.Contains(texts, "У лекарей нет капа") && !strings.Contains(texts, "Healers have no hit") {
 		t.Error("no healer note in the setup window")
+	}
+	// cap titles are plain words: the explanation lives in the tooltip
+	if strings.Contains(texts, "?|r") {
+		t.Error("a question mark is back in the cap titles")
 	}
 	a.noErrors(t)
 }
