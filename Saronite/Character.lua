@@ -31,6 +31,8 @@ local function itemFromRecord(r)
 		sockets = r.sockets or "",
 		stats = stats,
 		type = string.gsub(r.equipLoc or r.type or "", "^INVTYPE_", ""),
+		quality = r.quality or -1,
+		ilvl = r.ilvl or 0,
 		unusable = r.usable == false,
 		socketBonus = Rules.StatsFromText(r.bonus),
 	}
@@ -131,6 +133,8 @@ function Character.FromBody(body)
 				sockets = f[19] or "",
 				stats = parseStats(f[20]),
 				type = f[21] or "",
+				quality = n(f[17]),
+				ilvl = n(f[18]),
 				unusable = f[22] == "0",
 				socketBonus = Rules.StatsFromText(f[23]),
 			}

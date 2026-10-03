@@ -38,7 +38,25 @@ local L = {
 	BUCKLE = "+ belt buckle",
 	CAP_HIT = "Hit",
 	CAP_EXP = "Expertise",
-	CHANGES = "Changes: items %d · enchants %d · gems in %d items",
+	CHANGES = "Changes:",
+	CHANGES_ITEMS = "items %d",
+	CHANGES_ENCHANTS = "enchants %d",
+	CHANGES_GEMS = "gems in %d items",
+	NO_CHANGES = "Nothing to change.",
+	NO_CHANGE = "no change",
+	COL_NOW = "now",
+	COL_AFTER = "after",
+	ROLE_TANK = "tank",
+	ROLE_DPS = "DPS",
+	ALTERNATIVE = "alternative",
+	TIP_ALT = "Alternative from the phase %s BiS list",
+	TIP_WEAK = "Weak for this phase: worth replacing",
+	NOTE_BANK = "%s: the item is in the bank.",
+	SLOTS = {
+		[1] = "Head", [2] = "Neck", [3] = "Shoulders", [5] = "Chest", [6] = "Waist", [7] = "Legs", [8] = "Feet",
+		[9] = "Wrists", [10] = "Hands", [11] = "Ring 1", [12] = "Ring 2", [13] = "Trinket 1", [14] = "Trinket 2",
+		[15] = "Back", [16] = "Main hand", [17] = "Off hand", [18] = "Ranged / relic",
+	},
 	TIP_EQUIP = "Equip this item",
 	TIP_BIS = "BiS of phase %s for this slot",
 	TIP_BUCKLE = "Belt buckle socket (Eternal Belt Buckle)",
@@ -46,8 +64,7 @@ local L = {
 	TIP_INSERT = "Insert into the empty socket",
 	TIP_APPLY = "Apply this enchant",
 	TIP_OFFSPEC = "Not for your spec: %s is wasted",
-	TIP_ALTERNATIVES = "Phase %s BiS options for this slot:",
-	NOTE_OFFSPEC = "Not for your spec: %s — see the BiS options in the item tooltip.",
+	NOTE_OFFSPEC = "Not for your spec: %s — alternatives are shown next to the item.",
 	OLD_ENCHANT = "the current enchant",
 	CAP_OF = "cap %s",
 	CAP_DONE = "cap reached",
@@ -99,7 +116,25 @@ if GetLocale() == "ruRU" then
 	L.BUCKLE = "+ пряжка"
 	L.CAP_HIT = "Меткость"
 	L.CAP_EXP = "Мастерство"
-	L.CHANGES = "Изменений: вещей %d · чар %d · камни в %d вещах"
+	L.CHANGES = "Изменения:"
+	L.CHANGES_ITEMS = "вещей %d"
+	L.CHANGES_ENCHANTS = "чар %d"
+	L.CHANGES_GEMS = "камни в %d вещах"
+	L.NO_CHANGES = "Менять ничего не нужно."
+	L.NO_CHANGE = "без изменений"
+	L.COL_NOW = "сейчас"
+	L.COL_AFTER = "после"
+	L.ROLE_TANK = "танк"
+	L.ROLE_DPS = "ДД"
+	L.ALTERNATIVE = "альтернатива"
+	L.TIP_ALT = "Альтернатива из BiS-списка фазы %s"
+	L.TIP_WEAK = "Слабая вещь для этой фазы — стоит заменить"
+	L.NOTE_BANK = "%s: вещь лежит в банке."
+	L.SLOTS = {
+		[1] = "Голова", [2] = "Шея", [3] = "Плечи", [5] = "Грудь", [6] = "Пояс", [7] = "Ноги", [8] = "Ступни",
+		[9] = "Запястья", [10] = "Кисти рук", [11] = "Кольцо 1", [12] = "Кольцо 2", [13] = "Аксессуар 1",
+		[14] = "Аксессуар 2", [15] = "Спина", [16] = "Правая рука", [17] = "Левая рука", [18] = "Дальний бой / реликвия",
+	}
 	L.TIP_EQUIP = "Надень эту вещь"
 	L.TIP_BIS = "BiS фазы %s для этого слота"
 	L.TIP_BUCKLE = "Гнездо пряжки (Вечная пряжка)"
@@ -107,8 +142,7 @@ if GetLocale() == "ruRU" then
 	L.TIP_INSERT = "Вставить в пустое гнездо"
 	L.TIP_APPLY = "Наложить эти чары"
 	L.TIP_OFFSPEC = "Не для твоего спека: пропадают %s"
-	L.TIP_ALTERNATIVES = "Варианты из BiS-списка фазы %s:"
-	L.NOTE_OFFSPEC = "Не по спеку: %s — варианты замены в подсказке вещи."
+	L.NOTE_OFFSPEC = "Не по спеку: %s — альтернативы показаны рядом с вещью."
 	L.OLD_ENCHANT = "текущих чар"
 	L.CAP_OF = "кап %s"
 	L.CAP_DONE = "кап закрыт"

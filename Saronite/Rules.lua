@@ -17,22 +17,22 @@ Rules.meleeHitCap = 8.0
 Rules.spellHitCap = 17.0
 Rules.expertiseCap = 26.0
 
-local function spec(name, role, maybeTank)
-	return { name = name, role = role, maybeTank = maybeTank or false }
+local function spec(name, role, maybeTank, nameEN)
+	return { name = name, nameEN = nameEN or name, role = role, maybeTank = maybeTank or false }
 end
 
 -- ruRU client tree names (Wowhead WotLK skill pages).
 Rules.specs = {
-	WARRIOR = { spec("Оружие", MELEE), spec("Неистовство", MELEE), spec("Защита", TANK) },
-	PALADIN = { spec("Свет", HEALER), spec("Защита", TANK), spec("Воздаяние", MELEE) },
-	HUNTER = { spec("Повелитель зверей", RANGED), spec("Стрельба", RANGED), spec("Выживание", RANGED) },
-	ROGUE = { spec("Ликвидация", MELEE), spec("Бой", MELEE), spec("Скрытность", MELEE) },
-	PRIEST = { spec("Послушание", HEALER), spec("Свет", HEALER), spec("Темная магия", CASTER) },
-	DEATHKNIGHT = { spec("Кровь", MELEE, true), spec("Лед", MELEE, true), spec("Нечестивость", MELEE, true) },
-	SHAMAN = { spec("Стихии", CASTER), spec("Совершенствование", MELEE), spec("Восстановление", HEALER) },
-	MAGE = { spec("Тайная магия", CASTER), spec("Огонь", CASTER), spec("Лед", CASTER) },
-	WARLOCK = { spec("Колдовство", CASTER), spec("Демонология", CASTER), spec("Разрушение", CASTER) },
-	DRUID = { spec("Баланс", CASTER), spec("Сила зверя", MELEE, true), spec("Восстановление", HEALER) },
+	WARRIOR = { spec("Оружие", MELEE, false, "Arms"), spec("Неистовство", MELEE, false, "Fury"), spec("Защита", TANK, false, "Protection") },
+	PALADIN = { spec("Свет", HEALER, false, "Holy"), spec("Защита", TANK, false, "Protection"), spec("Воздаяние", MELEE, false, "Retribution") },
+	HUNTER = { spec("Повелитель зверей", RANGED, false, "Beast Mastery"), spec("Стрельба", RANGED, false, "Marksmanship"), spec("Выживание", RANGED, false, "Survival") },
+	ROGUE = { spec("Ликвидация", MELEE, false, "Assassination"), spec("Бой", MELEE, false, "Combat"), spec("Скрытность", MELEE, false, "Subtlety") },
+	PRIEST = { spec("Послушание", HEALER, false, "Discipline"), spec("Свет", HEALER, false, "Holy"), spec("Темная магия", CASTER, false, "Shadow") },
+	DEATHKNIGHT = { spec("Кровь", MELEE, true, "Blood"), spec("Лед", MELEE, true, "Frost"), spec("Нечестивость", MELEE, true, "Unholy") },
+	SHAMAN = { spec("Стихии", CASTER, false, "Elemental"), spec("Совершенствование", MELEE, false, "Enhancement"), spec("Восстановление", HEALER, false, "Restoration") },
+	MAGE = { spec("Тайная магия", CASTER, false, "Arcane"), spec("Огонь", CASTER, false, "Fire"), spec("Лед", CASTER, false, "Frost") },
+	WARLOCK = { spec("Колдовство", CASTER, false, "Affliction"), spec("Демонология", CASTER, false, "Demonology"), spec("Разрушение", CASTER, false, "Destruction") },
+	DRUID = { spec("Баланс", CASTER, false, "Balance"), spec("Сила зверя", MELEE, true, "Feral Combat"), spec("Восстановление", HEALER, false, "Restoration") },
 }
 
 -- Hit talents: tree, position in the (tier, column) ordered rank string
@@ -65,6 +65,10 @@ Rules.hitTalents = {
 	PRIEST = { talent("Средоточие Тьмы", 3, 5, 1, { "spell" }, function(c) return c.specTab == 3 end) },
 	DRUID = { talent("Баланс сил", 1, 16, 2, { "spell" }) },
 }
+
+-- Below this item level an item is weak for the phase (heroic dungeons
+-- and up are fine).
+Rules.weakItemLevel = { T7 = 187 }
 
 -- Bistooltip spec keys per class and tree: { dps, tank }.
 Rules.bisSpecs = {

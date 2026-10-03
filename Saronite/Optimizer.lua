@@ -64,7 +64,7 @@ local function detectSpec(c)
 		return points, nil
 	end
 	local s = classSpecs[trees[best].tab]
-	return points, { name = s.name, role = s.role, maybeTank = s.maybeTank, tab = trees[best].tab }
+	return points, { name = s.name, nameEN = s.nameEN, role = s.role, maybeTank = s.maybeTank, tab = trees[best].tab }
 end
 Optimizer.DetectSpec = detectSpec
 
@@ -680,6 +680,7 @@ function Optimizer.Run(c, data, tank, yield)
 		phase = data.phase,
 		specKey = key,
 		specLabel = specLabel(spec, tank),
+		spec = spec,
 		sim = sim,
 		tank = tank,
 		canTank = spec.maybeTank,
@@ -779,9 +780,30 @@ local function offSpec(stats, w)
 	return nil
 end
 
+local function localLabel(r)
+	local L = ns.L
+	local spec = r.spec
+	if not spec then return r.specLabel end
+	local name = GetLocale() == "ruRU" and spec.name or spec.nameEN
+	if spec.maybeTank then name = name .. " (" .. (r.tank and L.ROLE_TANK or L.ROLE_DPS) .. ")" end
+	return name
+end
+
+-- Alternatives for a slot: the phase BiS list without the current item and
+-- the BiS shown next to it.
+local function alternativesFor(items, current, bis)
+	local out = {}
+	for _, id in ipairs(items or {}) do
+		if id ~= current and id ~= bis and #out < 2 then out[#out + 1] = id end
+	end
+	return out
+end
+
 function Optimizer.View(c, r)
-	local view = { name = c.name, realm = c.realm, spec = r.specLabel, phase = r.phase, caps = {}, slots = {},
-		notes = r.notes, canTank = r.canTank, tank = r.tank, stats = {} }
+	local L = ns.L
+	local view = { name = c.name, realm = c.realm, spec = localLabel(r), phase = r.phase, caps = {}, slots = {},
+		notes = {}, canTank = r.canTank, tank = r.tank, stats = {} }
+	local weakLevel = Rules.weakItemLevel[r.phase] or 0
 	if r.after.hitCap > 0 then
 		view.caps.hit = { before = r.before.hitPct, after = r.after.hitPct, cap = r.after.hitCap,
 			rating = r.after.hitRating, talent = r.after.hitTalent }
@@ -804,8 +826,14 @@ function Optimizer.View(c, r)
 			changedItem = s.changedItem, changedEnchant = s.changedEnchant, changedGems = s.changedGems,
 			buckle = s.needsBuckle, bis = r.bis and r.bis[slot],
 			offSpec = offSpec(s.item.stats, r.weights or {}),
-			alternatives = r.alternatives and r.alternatives[slot],
+			weak = (s.item.quality >= 0 and s.item.quality <= 2) or (s.item.ilvl > 0 and s.item.ilvl < weakLevel),
 		}
+		if v.offSpec or v.weak then
+			v.alternatives = alternativesFor(r.alternatives and r.alternatives[slot], s.item.id, v.bis)
+		end
+		if s.item.loc == "K" and s.changedItem then
+			view.notes[#view.notes + 1] = string.format(L.NOTE_BANK, L.SLOTS[slot] or tostring(slot))
+		end
 		-- what is on the item now, to show what gets replaced
 		local cur = s.current
 		if cur and not s.changedItem then

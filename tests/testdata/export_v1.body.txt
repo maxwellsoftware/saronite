@@ -1,5 +1,5 @@
 SAR|1
-H|addon|0.4.0
+H|addon|0.5.0
 H|client|3.3.5|12340|ruRU
 H|realm|Frostmourne
 H|name|Артас

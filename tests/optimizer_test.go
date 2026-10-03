@@ -150,8 +150,11 @@ func TestViewFlagsOffSpecItems(t *testing.T) {
 	if strings.Join(codes, ",") != "INT,SP" {
 		t.Errorf("wasted stats = %v", codes)
 	}
-	if ring.RawGetString("alternatives").(*lua.LTable).Len() < 3 {
-		t.Error("no BiS alternatives for the ring")
+	if ring.RawGetString("alternatives").(*lua.LTable).Len() != 2 {
+		t.Error("the off-spec ring needs 2 alternatives")
+	}
+	if slots.RawGetInt(1).(*lua.LTable).RawGetString("alternatives") != lua.LNil {
+		t.Error("a good helmet gets no alternatives")
 	}
 	if slots.RawGetInt(1).(*lua.LTable).RawGetString("offSpec") != lua.LNil {
 		t.Error("the feral helmet is not off-spec")
@@ -171,4 +174,44 @@ func TestViewFlagsOffSpecItems(t *testing.T) {
 	sv := a.ns.RawGetString("SetupView").(*lua.LTable)
 	a.callFn(t, sv.RawGetString("Show"), view)
 	a.noErrors(t)
+}
+
+// On an English client nothing Russian may leak into the setup window
+// (spec labels, slot names, notes).
+func TestEnglishClientHasNoRussianTexts(t *testing.T) {
+	a := load(t, `FAKE.locale = "enUS"`)
+	raw, _ := os.ReadFile("testdata/real_druid_feral.txt")
+	character := a.ns.RawGetString("Character").(*lua.LTable)
+	optimizer := a.ns.RawGetString("Optimizer").(*lua.LTable)
+	data := a.ns.RawGetString("Data").(*lua.LTable).RawGetString("phases").(*lua.LTable).RawGetString("T7")
+
+	ch := a.callFn(t, character.RawGetString("FromExportString"), lua.LString(raw))[0]
+	res := a.callFn(t, optimizer.RawGetString("Run"), ch, data, lua.LFalse)[0]
+	view := a.callFn(t, optimizer.RawGetString("View"), ch, res)[0].(*lua.LTable)
+	if got := view.RawGetString("spec").String(); got != "Feral Combat (DPS)" {
+		t.Errorf("spec label = %q", got)
+	}
+
+	sv := a.ns.RawGetString("SetupView").(*lua.LTable)
+	a.callFn(t, sv.RawGetString("Show"), view)
+	a.noErrors(t)
+
+	// every text set on any frame
+	err := a.L.DoString(`
+		CYRILLIC = {}
+		local function scan(v, seen)
+			if type(v) ~= "table" or seen[v] then return end
+			seen[v] = true
+			local text = rawget(v, "text")
+			if type(text) == "string" and string.find(text, "[\208\209]") then CYRILLIC[#CYRILLIC + 1] = text end
+			for k, x in pairs(v) do if type(x) == "table" then scan(x, seen) end end
+		end
+		scan(SaroniteSetupFrame, {})
+		for _, f in ipairs(FRAMES) do scan(f, {}) end
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cyr := a.L.GetGlobal("CYRILLIC").(*lua.LTable)
+	cyr.ForEach(func(_, v lua.LValue) { t.Errorf("Russian text on enUS client: %q", v.String()) })
 }
