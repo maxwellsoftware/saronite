@@ -16,12 +16,14 @@ FAKE = {
 	talents = {
 		[1] = {
 			[1] = { { 2, 1, 0 }, { 1, 1, 0 } },
-			[2] = { { 1, 2, 3 }, { 1, 1, 2 }, { 3, 1, 5 }, { 2, 3, 3 } },
+			-- sorted: (1,1)2 (1,2)3 (2,3)3 (3,1)5 (3,2)0 (4,1)3 — index 5 is
+			-- the 3/3 one-handed hit talent the bot must count
+			[2] = { { 1, 2, 3 }, { 1, 1, 2 }, { 3, 1, 5 }, { 2, 3, 3 }, { 4, 1, 3 }, { 3, 2, 0 } },
 			[3] = { { 1, 1, 5 }, { 2, 1, 1 } },
 		},
 		[2] = {
 			[1] = { { 1, 1, 5 }, { 2, 1, 0 } },
-			[2] = { { 1, 1, 0 }, { 1, 2, 0 }, { 2, 3, 0 }, { 3, 1, 0 } },
+			[2] = { { 1, 1, 0 }, { 1, 2, 0 }, { 2, 3, 0 }, { 3, 1, 0 }, { 3, 2, 0 }, { 4, 1, 0 } },
 			[3] = { { 1, 1, 0 }, { 2, 1, 0 } },
 		},
 	},
@@ -35,7 +37,7 @@ FAKE = {
 	},
 	stats = {
 		ratings = { [6] = 210, [7] = 0, [8] = 210, [9] = 400, [18] = 300, [24] = 80, [25] = 150 },
-		hitMod = 3, spellHitMod = 0, expertise = { 19, 19 },
+		expertise = { 19, 19 },
 		ap = { 4000, 900, 0 }, rap = { 1000, 0, 0 },
 		primary = { 1800, 400, 1500, 80, 120 },
 		armor = 15000, hp = 30000, mana = 0, buffs = 2,
@@ -157,8 +159,7 @@ function GetCombatRatingBonus(cr)
 	if not perPct[cr] then return 0 end
 	return (s.ratings[cr] or 0) / perPct[cr]
 end
-function GetHitModifier() return s.hitMod end
-function GetSpellHitModifier() return s.spellHitMod end
+-- GetHitModifier / GetSpellHitModifier do not exist in the 3.3.5 client.
 function GetExpertise() return s.expertise[1], s.expertise[2] end
 function UnitAttackPower() return s.ap[1], s.ap[2], s.ap[3] end
 function UnitRangedAttackPower() return s.rap[1], s.rap[2], s.rap[3] end

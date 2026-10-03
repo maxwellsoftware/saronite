@@ -58,8 +58,9 @@ Ratings and their percent bonus (`<key>` raw rating, `<key>Pct` percent):
 `hitMelee hitRanged hitSpell critMelee critRanged critSpell hasteMelee
 hasteRanged hasteSpell expertise arp defense`.
 
-Other keys: `hitMod` (melee/ranged hit % from talents and auras),
-`spellHitMod` (spell hit % from talents and auras), `expMH` `expOH`
+Other keys: `hitMod` and `spellHitMod` (hit % from talents and auras —
+**absent on 3.3.5 clients**, which lack `GetHitModifier`; the bot derives hit
+from talents itself), `expMH` `expOH`
 (expertise skill incl. talents), `ap` `rap` `sp` `heal`, `str agi sta int spi`
 (effective), `armor hp mana dodge parry block buffs`.
 

@@ -205,12 +205,12 @@ func TestExportRoundTrip(t *testing.T) {
 		"H|class|DEATHKNIGHT",
 		"H|bank|1790000000",
 		// GetTalentInfo order (1,2)(1,1)(3,1)(2,3) must be sorted by tier/column.
-		"T|1|2|13|2335",
+		"T|1|2|16|233503",
 		"T|2|1|5|50",
+		"T|2|2|0|000000",
 		"G|1|58631,0,63335,0,0,0",
 		"P|JEWELCRAFTING|450|450",
 		"P|MINING|450|450",
-		"S|hitMod|3",
 		"S|expMH|19",
 		"S|buffs|2",
 		// head: enchant, meta + red gem, sockets MR, stats sorted by code

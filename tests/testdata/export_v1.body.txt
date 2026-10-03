@@ -11,10 +11,10 @@ H|time|1790000000
 H|group|1
 H|bank|1790000000
 T|1|1|0|00
-T|1|2|13|2335
+T|1|2|16|233503
 T|1|3|6|51
 T|2|1|5|50
-T|2|2|0|0000
+T|2|2|0|000000
 T|2|3|0|00
 G|1|58631,0,63335,0,0,0
 G|2|0,0,0,0,0,0
@@ -49,7 +49,6 @@ S|hasteSpellPct|0
 S|heal|0
 S|hitMelee|210
 S|hitMeleePct|6.4
-S|hitMod|3
 S|hitRanged|0
 S|hitRangedPct|0
 S|hitSpell|210
@@ -60,7 +59,6 @@ S|mana|0
 S|parry|6.25
 S|rap|1000
 S|sp|0
-S|spellHitMod|0
 S|spi|120
 S|sta|1500
 S|str|1800
