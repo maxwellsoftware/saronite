@@ -1,13 +1,13 @@
 # Export string format, version 1
 
-The contract between the FrostmourneGear addon and the gear bot. Any
-incompatible change bumps the version in **both** the prefix and the `FG`
+The contract between the Saronite addon and the gear bot. Any
+incompatible change bumps the version in **both** the prefix and the `SAR`
 line, and the bot keeps decoding older versions until addons are updated.
 
 ## Envelope
 
 ```
-!FG:1!<payload>
+!SAR:1!<payload>
 ```
 
 - `<payload>` = `LibDeflate:EncodeForPrint(LibDeflate:CompressZlib(body))`.
@@ -26,7 +26,7 @@ record types and unknown keys (forward compatibility within a version).
 
 | Record | Fields | Notes |
 |---|---|---|
-| `FG` | version | Always the first line |
+| `SAR` | version | Always the first line |
 | `H` | key, values… | Header, see below |
 | `T` | group, tab, points, ranks | Talent ranks as digits ordered by (tier, column) — the order used by talent calculators. `group` is the dual-spec index (1–2), `tab` is the tree index (1–3) in the client's order |
 | `G` | group, ids | Six glyph spell ids, comma separated, `0` = empty socket |

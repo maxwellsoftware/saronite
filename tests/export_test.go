@@ -23,7 +23,7 @@ import (
 
 var update = flag.Bool("update", false, "rewrite golden files in testdata/")
 
-const addonDir = "../FrostmourneGear"
+const addonDir = "../Saronite"
 
 // addon is a loaded addon instance.
 type addon struct {
@@ -54,7 +54,7 @@ func load(t *testing.T, extraLua string) *addon {
 			t.Fatalf("load %s: %v", file, err)
 		}
 		L.Push(fn)
-		L.Push(lua.LString("FrostmourneGear"))
+		L.Push(lua.LString("Saronite"))
 		L.Push(ns)
 		if err := L.PCall(2, lua.MultRet, nil); err != nil {
 			t.Fatalf("run %s: %v", file, err)
@@ -63,7 +63,7 @@ func load(t *testing.T, extraLua string) *addon {
 	}
 
 	a := &addon{L: L, ns: ns}
-	a.call(t, "FireEvent", lua.LString("ADDON_LOADED"), lua.LString("FrostmourneGear"))
+	a.call(t, "FireEvent", lua.LString("ADDON_LOADED"), lua.LString("Saronite"))
 	a.call(t, "FireEvent", lua.LString("BANKFRAME_OPENED"))
 	a.call(t, "FireEvent", lua.LString("BANKFRAME_CLOSED"))
 	return a
@@ -72,7 +72,7 @@ func load(t *testing.T, extraLua string) *addon {
 // tocFiles lists the files from the .toc in load order.
 func tocFiles(t *testing.T) []string {
 	t.Helper()
-	f, err := os.Open(filepath.Join(addonDir, "FrostmourneGear.toc"))
+	f, err := os.Open(filepath.Join(addonDir, "Saronite.toc"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -132,7 +132,7 @@ func (a *addon) fullBody(t *testing.T) string {
 
 // decode mirrors the bot's decoder: prefix, LibDeflate print encoding, zlib.
 func decode(s string) (string, error) {
-	const prefix = "!FG:1!"
+	const prefix = "!SAR:1!"
 	if !strings.HasPrefix(s, prefix) {
 		return "", fmt.Errorf("missing prefix in %.20q", s)
 	}
@@ -199,7 +199,7 @@ func TestExportRoundTrip(t *testing.T) {
 	}
 
 	for _, want := range []string{
-		"FG|1",
+		"SAR|1",
 		"H|client|3.3.5|12340|ruRU",
 		"H|name|Артас",
 		"H|class|DEATHKNIGHT",
@@ -276,18 +276,18 @@ func TestExportTrimsToFitTelegram(t *testing.T) {
 
 func TestSlashCommandOpensWindow(t *testing.T) {
 	a := load(t, "")
-	handler := a.L.GetGlobal("SlashCmdList").(*lua.LTable).RawGetString("FROSTMOURNEGEAR")
+	handler := a.L.GetGlobal("SlashCmdList").(*lua.LTable).RawGetString("SARONITE")
 	a.callFn(t, handler, lua.LString(""))
 
-	frame := a.L.GetGlobal("FrostmourneGearFrame").(*lua.LTable)
+	frame := a.L.GetGlobal("SaroniteFrame").(*lua.LTable)
 	if lua.LVAsBool(frame.RawGetString("shown")) != true {
-		t.Fatal("window is not shown after /fg")
+		t.Fatal("window is not shown after /sar")
 	}
 
 	a.callFn(t, handler, lua.LString("bank"))
 	log := a.L.GetGlobal("CHAT_LOG").(*lua.LTable)
 	if log.Len() == 0 || !strings.Contains(log.RawGetInt(log.Len()).String(), "2") {
-		t.Fatalf("/fg bank should report 2 bank items")
+		t.Fatalf("/sar bank should report 2 bank items")
 	}
 }
 

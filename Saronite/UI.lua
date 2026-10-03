@@ -39,7 +39,7 @@ function UI.Refresh()
 end
 
 local function CreateWindow()
-	window = CreateFrame("Frame", "FrostmourneGearFrame", UIParent)
+	window = CreateFrame("Frame", "SaroniteFrame", UIParent)
 	window:SetWidth(560)
 	window:SetHeight(320)
 	window:SetPoint("CENTER")
@@ -57,7 +57,7 @@ local function CreateWindow()
 	window:SetScript("OnDragStop", window.StopMovingOrSizing)
 	window:Hide()
 	-- Escape closes the window like any Blizzard panel.
-	table.insert(UISpecialFrames, "FrostmourneGearFrame")
+	table.insert(UISpecialFrames, "SaroniteFrame")
 
 	local title = window:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
 	title:SetPoint("TOP", 0, -18)
@@ -66,7 +66,7 @@ local function CreateWindow()
 	local closeX = CreateFrame("Button", nil, window, "UIPanelCloseButton")
 	closeX:SetPoint("TOPRIGHT", -6, -6)
 
-	local scroll = CreateFrame("ScrollFrame", "FrostmourneGearScroll", window, "UIPanelScrollFrameTemplate")
+	local scroll = CreateFrame("ScrollFrame", "SaroniteScroll", window, "UIPanelScrollFrameTemplate")
 	scroll:SetPoint("TOPLEFT", 22, -48)
 	scroll:SetPoint("BOTTOMRIGHT", -40, 96)
 
@@ -133,14 +133,14 @@ end
 local function CreateCharacterButton()
 	if not PaperDollFrame then return end
 
-	local button = CreateFrame("Button", "FrostmourneGearCharacterButton", PaperDollFrame, "UIPanelButtonTemplate")
+	local button = CreateFrame("Button", "SaroniteCharacterButton", PaperDollFrame, "UIPanelButtonTemplate")
 	button:SetWidth(80)
 	button:SetHeight(22)
 	button:SetText(L.BUTTON)
 	button:SetMovable(true)
 	button:RegisterForDrag("LeftButton")
 
-	local pos = FrostmourneGearDB.buttonPos
+	local pos = SaroniteDB.buttonPos
 	if pos then
 		button:SetPoint("TOPLEFT", PaperDollFrame, "TOPLEFT", pos.x, pos.y)
 	else
@@ -161,7 +161,7 @@ local function CreateCharacterButton()
 		self:SetUserPlaced(false)
 		self:ClearAllPoints()
 		self:SetPoint("TOPLEFT", PaperDollFrame, "TOPLEFT", x, y)
-		FrostmourneGearDB.buttonPos = { x = x, y = y }
+		SaroniteDB.buttonPos = { x = x, y = y }
 	end)
 	button:SetScript("OnEnter", function(self)
 		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")

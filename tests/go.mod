@@ -1,4 +1,4 @@
-module frostmourne-gear-addon/tests
+module saronite/tests
 
 go 1.24.4
 

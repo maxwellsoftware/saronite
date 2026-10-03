@@ -1,7 +1,7 @@
 local _, ns = ...
 
 local L = {
-	TITLE = "FrostmourneGear",
+	TITLE = "Saronite",
 	BUTTON = "Export",
 	BUTTON_TOOLTIP = "Export gear for the guild bot.\nShift+drag to move the button.",
 	REFRESH = "Refresh",
@@ -15,7 +15,7 @@ local L = {
 	BANK_SCANNED = "Bank scanned: %d items will be included in the export.",
 	BANK_NONE = "Bank was never opened on this character — open it once so its gear is included.",
 	BANK_AGE = "Bank scanned %s ago.",
-	USAGE = "/fg — open export window, /fg bank — bank scan status",
+	USAGE = "/sar — open export window, /sar bank — bank scan status",
 	ERROR = "Export failed: %s",
 }
 
@@ -33,7 +33,7 @@ if GetLocale() == "ruRU" then
 	L.BANK_SCANNED = "Банк просканирован: в экспорт попадёт %d вещей."
 	L.BANK_NONE = "Банк на этом персонаже ещё не открывался — откройте его один раз, чтобы вещи оттуда попали в экспорт."
 	L.BANK_AGE = "Банк просканирован %s назад."
-	L.USAGE = "/fg — окно экспорта, /fg bank — состояние скана банка"
+	L.USAGE = "/sar — окно экспорта, /sar bank — состояние скана банка"
 	L.ERROR = "Ошибка экспорта: %s"
 end
 

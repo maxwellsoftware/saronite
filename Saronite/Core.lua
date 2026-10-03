@@ -6,7 +6,7 @@ ns.FORMAT_VERSION = 1
 local L = ns.L
 
 function ns.Print(msg)
-	DEFAULT_CHAT_FRAME:AddMessage("|cff33ff99FrostmourneGear|r: " .. tostring(msg))
+	DEFAULT_CHAT_FRAME:AddMessage("|cff33ff99Saronite|r: " .. tostring(msg))
 end
 
 -- Per-character key for SavedVariables.
@@ -16,16 +16,16 @@ end
 
 -- Returns the saved bank snapshot of the current character, or nil.
 function ns.GetBank()
-	local db = FrostmourneGearDB
+	local db = SaroniteDB
 	local char = db and db.chars and db.chars[ns.CharKey()]
 	return char and char.bank
 end
 
 local function InitDB()
-	if type(FrostmourneGearDB) ~= "table" then
-		FrostmourneGearDB = {}
+	if type(SaroniteDB) ~= "table" then
+		SaroniteDB = {}
 	end
-	local db = FrostmourneGearDB
+	local db = SaroniteDB
 	db.version = 1
 	db.chars = db.chars or {}
 	db.chars[ns.CharKey()] = db.chars[ns.CharKey()] or {}
@@ -37,7 +37,7 @@ local bankOpen = false
 
 local function SaveBank()
 	if not bankOpen then return end
-	local char = FrostmourneGearDB.chars[ns.CharKey()]
+	local char = SaroniteDB.chars[ns.CharKey()]
 	char.bank = { time = time(), items = ns.Scanner.ScanBank() }
 end
 
@@ -66,10 +66,9 @@ frame:SetScript("OnEvent", function(self, event, arg1)
 	end
 end)
 
-SLASH_FROSTMOURNEGEAR1 = "/fg"
-SLASH_FROSTMOURNEGEAR2 = "/fgear"
-SLASH_FROSTMOURNEGEAR3 = "/frostgear"
-SlashCmdList.FROSTMOURNEGEAR = function(msg)
+SLASH_SARONITE1 = "/sar"
+SLASH_SARONITE2 = "/saronite"
+SlashCmdList.SARONITE = function(msg)
 	msg = string.lower(strtrim(msg or ""))
 	if msg == "bank" then
 		local bank = ns.GetBank()

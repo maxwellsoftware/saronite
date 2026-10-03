@@ -1,4 +1,4 @@
-FG|1
+SAR|1
 H|addon|0.1.0
 H|client|3.3.5|12340|ruRU
 H|realm|Frostmourne

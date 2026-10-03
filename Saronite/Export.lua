@@ -8,7 +8,7 @@ local LibDeflate = LibStub("LibDeflate")
 local Export = {}
 ns.Export = Export
 
-Export.PREFIX = "!FG:" .. ns.FORMAT_VERSION .. "!"
+Export.PREFIX = "!SAR:" .. ns.FORMAT_VERSION .. "!"
 -- One Telegram message holds 4096 characters; leave room for edits.
 Export.TARGET_LENGTH = 4000
 
@@ -102,7 +102,7 @@ end
 -- opts: bagStats (stats for bag/bank items), bags, bank.
 function Export.Serialize(snap, opts)
 	local out = {}
-	line(out, "FG", ns.FORMAT_VERSION)
+	line(out, "SAR", ns.FORMAT_VERSION)
 
 	for _, h in ipairs(snap.header) do
 		local fields = { "H" }
