@@ -214,16 +214,20 @@ func TestExportRoundTrip(t *testing.T) {
 		"S|expMH|19",
 		"S|buffs|2",
 		// head: enchant, meta + red gem, sockets MR, stats sorted by code
-		"I|E|1|40565|3817|3621|3519|0|0|0|0|41398|40111|0|0|1|4|226|MR|ARMOR=1914,HIT=49,STA=98,STR=74|HEAD",
+		"I|E|1|40565|3817|3621|3519|0|0|0|0|41398|40111|0|0|1|4|226|MR|ARMOR=1914,HIT=49,STA=98,STR=74|HEAD|1|+6 Strength",
 		// chest: second socket empty
-		"I|E|5|40550|3832|3519|0|0|0|0|0|40111|0|0|0|1|4|226|RY|EXP=40,STR=80|CHEST",
+		"I|E|5|40550|3832|3519|0|0|0|0|0|40111|0|0|0|1|4|226|RY|EXP=40,STR=80|CHEST|1|",
 		// cloak without enchant
-		"I|E|15|40403|0|0|0|0|0|0|0|0|0|0|0|1|4|226||STR=40|CLOAK",
-		"I|E|17|40703|3368|0|0|0|0|0|0|0|0|0|0|1|4|213||DPS=141.07,STR=35|WEAPON",
+		"I|E|15|40403|0|0|0|0|0|0|0|0|0|0|0|1|4|226||STR=40|CLOAK|1|",
+		"I|E|17|40703|3368|0|0|0|0|0|0|0|0|0|0|1|4|213||DPS=141.07,STR=35|WEAPON|1|",
+		// plate in the bags is unusable for the fixture (red tooltip line)
+		"I|B|1:5|39401|0|0|0|0|0|0|0|0|0|0|0|1|4|213||STR=60|HEAD|0|",
+		// stats of every gem in the export
+		"J|40111|STR=20",
 		// gems stack from bags
-		"I|B|2:1|40111|0|0|0|0|0|0|0|0|0|0|0|5|3|80|||",
+		"I|B|2:1|40111|0|0|0|0|0|0|0|0|0|0|0|5|4|80||STR=20||1|",
 		// random suffix item from the bank keeps its unique id
-		"I|K|-1:4|36000|0|0|0|0|0|-39|2031682|0|0|0|0|1|3|187|||CLOAK",
+		"I|K|-1:4|36000|0|0|0|0|0|-39|2031682|0|0|0|0|1|3|187|||CLOAK|1|",
 	} {
 		if !has(want) {
 			t.Errorf("missing line %q", want)
@@ -309,5 +313,72 @@ func golden(t *testing.T, name, got string) {
 	}
 	if string(want) != got {
 		t.Fatalf("%s changed; if intended, run go test -update and bump the format version if it is incompatible", path)
+	}
+}
+
+func TestImportBotAnswer(t *testing.T) {
+	a := load(t, "")
+	raw, err := os.ReadFile("testdata/response_druid.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	imp := a.ns.RawGetString("Import").(*lua.LTable)
+	// Telegram may add spaces and line breaks around the string.
+	ret := a.callFn(t, imp.RawGetString("Decode"), lua.LString("  \n"+string(raw)+"\n "))
+	setup, ok := ret[0].(*lua.LTable)
+	if !ok {
+		t.Fatalf("decode failed: %v", ret)
+	}
+	if setup.RawGetString("name").String() != "Feraltest" || setup.RawGetString("spec").String() != "Сила зверя (ДД)" {
+		t.Fatalf("header: name=%v spec=%v", setup.RawGetString("name"), setup.RawGetString("spec"))
+	}
+	slots := setup.RawGetString("slots").(*lua.LTable)
+	head := slots.RawGetInt(1).(*lua.LTable)
+	if head.RawGetString("item").String() != "37293" || head.RawGetString("enchantKind").String() != "i" ||
+		head.RawGetString("enchantSource").String() != "44879" || lua.LVAsBool(head.RawGetString("changedEnchant")) != true {
+		t.Fatalf("head slot parsed wrong")
+	}
+	gems := head.RawGetString("gems").(*lua.LTable)
+	if gems.Len() != 2 || gems.RawGetInt(1).String() != "41398" {
+		t.Fatalf("head gems: %d", gems.Len())
+	}
+	belt := slots.RawGetInt(6).(*lua.LTable)
+	if !lua.LVAsBool(belt.RawGetString("buckle")) {
+		t.Fatal("belt buckle flag lost")
+	}
+	hit := setup.RawGetString("caps").(*lua.LTable).RawGetString("hit").(*lua.LTable)
+	if hit.RawGetString("after").String() != "8.02" {
+		t.Fatalf("hit cap: %v", hit.RawGetString("after"))
+	}
+
+	// Rendering must not fail and shows the character in the caption.
+	view := a.ns.RawGetString("SetupView").(*lua.LTable)
+	a.callFn(t, view.RawGetString("Show"), setup)
+	frame := a.L.GetGlobal("SaroniteSetupFrame").(*lua.LTable)
+	caption := frame.RawGetString("caption").(*lua.LTable).RawGetString("text").String()
+	if !strings.Contains(caption, "Feraltest") {
+		t.Fatalf("caption: %q", caption)
+	}
+
+	// Garbage and damaged answers are rejected with a reason.
+	for input, want := range map[string]string{
+		"hello":                  "IMPORT_BAD",
+		"!SARP:9!abc":            "IMPORT_VERSION",
+		string(raw[:len(raw)/2]): "IMPORT_DAMAGED",
+	} {
+		ret := a.callFn(t, imp.RawGetString("Decode"), lua.LString(input))
+		if ret[0] != lua.LNil || ret[1].String() != want {
+			t.Errorf("Decode(%.12q) = %v, %v; want nil, %s", input, ret[0], ret[1], want)
+		}
+	}
+}
+
+func TestFontFallsBackToBundled(t *testing.T) {
+	a := load(t, "")
+	style := a.ns.RawGetString("Style").(*lua.LTable)
+	font := a.callFn(t, style.RawGetString("Font"), lua.LString("latin"))[0].String()
+	if !strings.HasSuffix(font, `PTSansNarrow-Bold.ttf`) {
+		t.Fatalf("font = %s", font)
 	}
 }

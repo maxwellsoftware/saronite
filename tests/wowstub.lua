@@ -44,6 +44,13 @@ FAKE = {
 	},
 	-- link pieces: itemString, quality, ilvl, itemType, equipLoc, stats
 	items = {},
+	-- tooltip lines per item id: { leftText, r, g, b, rightText, r, g, b }
+	tooltips = {},
+	-- font files that "exist"; Expressway is absent like on a fresh install
+	fonts = {
+		["Interface\\AddOns\\Saronite\\Media\\Fonts\\PTSansNarrow-Bold.ttf"] = true,
+		["Fonts\\FRIZQT__.TTF"] = true,
+	},
 	equipped = {},
 	bags = { [0] = {}, [1] = {}, [2] = {}, [3] = {}, [4] = {} },
 	bagSizes = { [0] = 16, [1] = 20, [2] = 20, [3] = 20, [4] = 20 },
@@ -64,6 +71,39 @@ function frameMethods:IsShown() return self.shown end
 function frameMethods:Show() self.shown = true end
 function frameMethods:Hide() self.shown = false end
 function frameMethods:CreateFontString() return NewFrame() end
+function frameMethods:CreateTexture() return NewFrame() end
+function frameMethods:SetFont(path) self.font = path end
+function frameMethods:GetFont() if FAKE.fonts[self.font] then return self.font end end
+function frameMethods:GetStringWidth()
+	if FAKE.fonts[self.font] and (self.text or "") ~= "" then return 50 end
+	return 0
+end
+function frameMethods:SetTextColor(r, g, b) self.color = { r, g, b } end
+function frameMethods:GetTextColor()
+	local c = self.color or { 1, 1, 1 }
+	return c[1], c[2], c[3]
+end
+function frameMethods:GetLeft() return 0 end
+function frameMethods:GetTop() return 0 end
+function frameMethods:GetWidth() return 100 end
+function frameMethods:GetHeight() return 100 end
+
+-- GameTooltip: SetHyperlink fills TextLeftN/TextRightN from FAKE.tooltips.
+local tooltipMethods = {}
+function tooltipMethods:ClearLines() self.lines = 0 end
+function tooltipMethods:NumLines() return self.lines or 0 end
+function tooltipMethods:SetHyperlink(link)
+	local id = tonumber(string.match(link, "item:(%d+)"))
+	local lines = (id and FAKE.tooltips[id]) or {}
+	self.lines = #lines
+	for i, l in ipairs(lines) do
+		local left = _G[self.name .. "TextLeft" .. i] or NewFrame()
+		local right = _G[self.name .. "TextRight" .. i] or NewFrame()
+		_G[self.name .. "TextLeft" .. i], _G[self.name .. "TextRight" .. i] = left, right
+		left.text, left.color = l[1], { l[2] or 1, l[3] or 1, l[4] or 1 }
+		right.text, right.color = l[5], { l[6] or 1, l[7] or 1, l[8] or 1 }
+	end
+end
 
 function NewFrame()
 	local f = { events = {}, scripts = {} }
@@ -74,8 +114,12 @@ function NewFrame()
 	})
 end
 
-function CreateFrame(_, name)
+function CreateFrame(kind, name)
 	local f = NewFrame()
+	if kind == "GameTooltip" then
+		f.name = name
+		for k, v in pairs(tooltipMethods) do f[k] = v end
+	end
 	FRAMES[#FRAMES + 1] = f
 	if name then _G[name] = f end
 	return f
@@ -89,6 +133,12 @@ function FireEvent(event, ...)
 end
 
 UIParent = NewFrame()
+WorldFrame = NewFrame()
+STANDARD_TEXT_FONT = "Fonts\\FRIZQT__.TTF"
+ITEM_SOCKET_BONUS = "Socket Bonus: %s"
+ITEM_QUALITY_COLORS = { [0] = { r = 0.6, g = 0.6, b = 0.6 }, { r = 1, g = 1, b = 1 }, { r = 0.1, g = 1, b = 0.1 },
+	{ r = 0, g = 0.44, b = 0.87 }, { r = 0.64, g = 0.21, b = 0.93 }, { r = 1, g = 0.5, b = 0 } }
+function GetItemIcon(id) return "Interface\\Icons\\Item" .. tostring(id) end
 PaperDollFrame = NewFrame()
 CharacterMainHandSlot = NewFrame()
 GameTooltip = NewFrame()
@@ -131,7 +181,7 @@ local SPELL_NAMES = {
 	[4036] = "Инженерное дело", [45357] = "Начертание", [25229] = "Ювелирное дело",
 	[2108] = "Кожевничество", [2575] = "Горное дело", [8613] = "Снятие шкур", [3908] = "Портняжное дело",
 }
-function GetSpellInfo(id) return SPELL_NAMES[id] end
+function GetSpellInfo(id) return SPELL_NAMES[id] or ("Spell " .. tostring(id)) end
 
 function GetNumSkillLines()
 	local n = 0

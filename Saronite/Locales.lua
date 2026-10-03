@@ -1,12 +1,21 @@
 local _, ns = ...
 
 local L = {
-	TITLE = "Saronite",
-	BUTTON = "Export",
-	BUTTON_TOOLTIP = "Export gear for the guild bot.\nShift+drag to move the button.",
+	BUTTON = "Saronite",
+	BUTTON_TOOLTIP = "Export your gear for the bot or show its answer.\nShift+drag to move the button.",
+	EXPORT_TITLE = "export",
+	IMPORT_TITLE = "import the bot's answer",
 	REFRESH = "Refresh",
-	CLOSE = "Close",
-	HINT = "Press Ctrl+C to copy, then send it to the bot in Telegram.",
+	EXPORT = "Export",
+	IMPORT = "Import",
+	IMPORT_SHOW = "Show setup",
+	LAST_SETUP = "Last setup",
+	NO_LAST_SETUP = "No imported setup yet.",
+	HINT = "Ctrl+C to copy, then send it to the bot in Telegram.",
+	IMPORT_HINT = "Paste the bot's answer (Ctrl+V) — it starts with !SARP:",
+	IMPORT_BAD = "This is not a Saronite answer: it starts with !SARP:",
+	IMPORT_DAMAGED = "The answer is damaged — copy it from Telegram again.",
+	IMPORT_VERSION = "The answer is from a newer bot — update the addon.",
 	LENGTH = "Length: %d characters.",
 	TRIMMED_BAGSTATS = "Item stats for bags/bank were left out to fit into one Telegram message.",
 	TRIMMED_BANK = "Bank items were left out to fit into one Telegram message.",
@@ -15,16 +24,33 @@ local L = {
 	BANK_SCANNED = "Bank scanned: %d items will be included in the export.",
 	BANK_NONE = "Bank was never opened on this character — open it once so its gear is included.",
 	BANK_AGE = "Bank scanned %s ago.",
-	USAGE = "/sar — open export window, /sar bank — bank scan status",
+	USAGE = "/sar — export, /sar import — paste the bot's answer, /sar bank — bank scan status",
 	ERROR = "Export failed: %s",
+	ENCHANT = "Enchant",
+	EMPTY_SLOT = "—",
+	LOC_BAG = "in bags",
+	LOC_BANK = "in the bank",
+	BUCKLE = "+ belt buckle",
+	CAP_HIT = "Hit",
+	CAP_EXP = "Expertise",
+	CHANGES = "Swap items: %d\nEnchants: %d · Gems in items: %d",
 }
 
 if GetLocale() == "ruRU" then
-	L.BUTTON = "Экспорт"
-	L.BUTTON_TOOLTIP = "Экспорт экипировки для гир-бота.\nShift+перетаскивание — сдвинуть кнопку."
+	L.BUTTON_TOOLTIP = "Экспорт экипировки для бота или показ его ответа.\nShift+перетаскивание — сдвинуть кнопку."
+	L.EXPORT_TITLE = "экспорт"
+	L.IMPORT_TITLE = "импорт ответа бота"
 	L.REFRESH = "Обновить"
-	L.CLOSE = "Закрыть"
-	L.HINT = "Нажмите Ctrl+C, чтобы скопировать, и отправьте боту в Telegram."
+	L.EXPORT = "Экспорт"
+	L.IMPORT = "Импорт"
+	L.IMPORT_SHOW = "Показать сетап"
+	L.LAST_SETUP = "Последний сетап"
+	L.NO_LAST_SETUP = "Ещё ничего не импортировано."
+	L.HINT = "Ctrl+C — скопировать и отправить боту в Telegram."
+	L.IMPORT_HINT = "Вставь ответ бота (Ctrl+V) — он начинается с !SARP:"
+	L.IMPORT_BAD = "Это не ответ Saronite: он начинается с !SARP:"
+	L.IMPORT_DAMAGED = "Ответ повреждён — скопируй его из Telegram ещё раз."
+	L.IMPORT_VERSION = "Ответ от более новой версии бота — обнови аддон."
 	L.LENGTH = "Длина: %d символов."
 	L.TRIMMED_BAGSTATS = "Характеристики вещей из сумок/банка не включены, чтобы строка влезла в одно сообщение Telegram."
 	L.TRIMMED_BANK = "Вещи из банка не включены, чтобы строка влезла в одно сообщение Telegram."
@@ -33,8 +59,15 @@ if GetLocale() == "ruRU" then
 	L.BANK_SCANNED = "Банк просканирован: в экспорт попадёт %d вещей."
 	L.BANK_NONE = "Банк на этом персонаже ещё не открывался — откройте его один раз, чтобы вещи оттуда попали в экспорт."
 	L.BANK_AGE = "Банк просканирован %s назад."
-	L.USAGE = "/sar — окно экспорта, /sar bank — состояние скана банка"
+	L.USAGE = "/sar — экспорт, /sar import — вставить ответ бота, /sar bank — состояние скана банка"
 	L.ERROR = "Ошибка экспорта: %s"
+	L.ENCHANT = "Чары"
+	L.LOC_BAG = "в сумке"
+	L.LOC_BANK = "в банке"
+	L.BUCKLE = "+ пряжка"
+	L.CAP_HIT = "Меткость"
+	L.CAP_EXP = "Мастерство"
+	L.CHANGES = "Заменить вещей: %d\nЧары: %d · Камни в вещах: %d"
 end
 
 ns.L = L

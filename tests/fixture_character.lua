@@ -13,7 +13,7 @@ local function item(id, quality, ilvl, itemType, equipLoc, stats)
 end
 
 item(41398, 4, 80, GEM, "", {})
-item(40111, 3, 80, GEM, "", {})
+item(40111, 4, 80, GEM, "", { ITEM_MOD_STRENGTH_SHORT = 20 })
 item(40125, 3, 80, GEM, "", {})
 
 item(40565, 4, 226, ARMOR, "INVTYPE_HEAD", { ITEM_MOD_STRENGTH_SHORT = 74, ITEM_MOD_STAMINA_SHORT = 98, ITEM_MOD_HIT_RATING_SHORT = 49, RESISTANCE0_NAME = 1914, EMPTY_SOCKET_META = 1, EMPTY_SOCKET_RED = 1 })
@@ -45,6 +45,10 @@ item(37000, 3, 200, ARMOR, "INVTYPE_TABARD", {})         -- tabard
 item(40343, 4, 226, ARMOR, "INVTYPE_SHIELD", { ITEM_MOD_STAMINA_SHORT = 60 })
 -- random suffix item: negative suffix id, unique id carries the factor
 item(36000, 3, 187, ARMOR, "INVTYPE_CLOAK", {})
+
+-- tooltip: socket bonus on the head, plate in the bags is unusable (red)
+FAKE.tooltips[40565] = { { "Socket Bonus: +6 Strength", 0.5, 0.5, 0.5 } }
+FAKE.tooltips[39401] = { { "Head", 1, 1, 1, "Plate", 1, 0.1, 0.1 } }
 
 FAKE.equipped = {
 	[1] = MakeLink(40565, 3817, 3621, 3519),

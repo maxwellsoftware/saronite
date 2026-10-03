@@ -57,7 +57,9 @@ local function itemLine(out, item, withStats)
 		num(item.gems[1]), num(item.gems[2]), num(item.gems[3]), num(item.gems[4]),
 		num(item.count), num(item.quality), num(item.ilvl), item.sockets,
 		withStats and statsField(item.stats) or "",
-		(string.gsub(item.equipLoc or "", "^INVTYPE_", "")))
+		(string.gsub(item.equipLoc or "", "^INVTYPE_", "")),
+		item.usable == false and "0" or "1",
+		item.bonus or "")
 end
 
 -- Snapshot gathers everything once; Build may then serialize it several times
@@ -131,6 +133,27 @@ function Export.Serialize(snap, opts)
 	end
 	if opts.bank then
 		for _, item in ipairs(snap.bank) do itemLine(out, item, opts.bagStats) end
+	end
+
+	-- Stats of every gem in the exported items, so the bot knows what the
+	-- current gems give even outside its own gem list.
+	local gems, seen = {}, {}
+	local function collect(list)
+		for _, item in ipairs(list) do
+			for _, id in ipairs(item.gems) do
+				if id > 0 and not seen[id] then
+					seen[id] = true
+					gems[#gems + 1] = id
+				end
+			end
+		end
+	end
+	collect(snap.equipped)
+	if opts.bags then collect(snap.bags) end
+	if opts.bank then collect(snap.bank) end
+	table.sort(gems)
+	for _, id in ipairs(gems) do
+		line(out, "J", id, statsField(ns.Scanner.StatCodes(GetItemStats("item:" .. id))))
 	end
 
 	return table.concat(out, "\n")

@@ -1,6 +1,6 @@
 local ADDON_NAME, ns = ...
 
-ns.VERSION = "0.1.0"
+ns.VERSION = "0.2.0"
 ns.FORMAT_VERSION = 1
 
 local L = ns.L
@@ -78,6 +78,8 @@ SlashCmdList.SARONITE = function(msg)
 			ns.Print(string.format(L.BANK_SCANNED, #bank.items) .. " " ..
 				string.format(L.BANK_AGE, SecondsToTime(time() - bank.time)))
 		end
+	elseif msg == "import" then
+		ns.UI.Show("import")
 	elseif msg == "help" or msg == "?" then
 		ns.Print(L.USAGE)
 	else

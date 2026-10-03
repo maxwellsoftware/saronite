@@ -1,123 +1,138 @@
--- Export window and the character sheet button.
--- WoW has no clipboard API: the string is shown pre-selected in an edit box
--- and the player presses Ctrl+C.
+-- Main window: export (string pre-selected for Ctrl+C) and import (paste the
+-- bot's answer). WoW has no clipboard API, hence the edit boxes.
 local _, ns = ...
 
 local L = ns.L
+local Style = ns.Style
 local UI = {}
 ns.UI = UI
 
-local window, editBox, infoText
-local currentText = ""
+local window, area, info, modeButtons
+local mode = "export"
+local exportText = ""
 
-local function SetExportText(text)
-	currentText = text
-	editBox:SetText(text)
-	editBox:SetFocus()
-	editBox:HighlightText()
+local function setInfo(text, color)
+	info:SetText(text or "")
+	info:SetTextColor(unpack(color or Style.color.dim))
 end
 
-function UI.Refresh()
+local function showExport()
+	mode = "export"
+	window.caption:SetText(L.EXPORT_TITLE)
+	modeButtons.action.label:SetText(L.REFRESH)
+
 	local ok, result, notes = pcall(ns.Export.Build)
 	if not ok then
-		ns.Print(string.format(L.ERROR, tostring(result)))
-		SetExportText("")
-		infoText:SetText(string.format(L.ERROR, tostring(result)))
+		exportText = ""
+		area.edit:SetText("")
+		setInfo(string.format(L.ERROR, tostring(result)), Style.color.warn)
 		return
 	end
 
-	SetExportText(result)
+	exportText = result
+	area.edit:SetText(result)
+	area.edit:SetFocus()
+	area.edit:HighlightText()
 
-	local lines = { string.format(L.LENGTH, #result) .. " " .. L.HINT }
+	local lines = { string.format(L.LENGTH, #result) .. "  " .. L.HINT }
 	for _, key in ipairs(notes) do
-		lines[#lines + 1] = "|cffffd100" .. L[key] .. "|r"
+		lines[#lines + 1] = "|cffffb340" .. L[key] .. "|r"
 	end
 	if not ns.GetBank() then
-		lines[#lines + 1] = "|cff999999" .. L.BANK_NONE .. "|r"
+		lines[#lines + 1] = L.BANK_NONE
 	end
-	infoText:SetText(table.concat(lines, "\n"))
+	setInfo(table.concat(lines, "\n"))
 end
 
-local function CreateWindow()
-	window = CreateFrame("Frame", "SaroniteFrame", UIParent)
-	window:SetWidth(560)
-	window:SetHeight(320)
-	window:SetPoint("CENTER")
-	window:SetFrameStrata("DIALOG")
-	window:SetBackdrop({
-		bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
-		edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
-		tile = true, tileSize = 32, edgeSize = 32,
-		insets = { left = 11, right = 12, top = 12, bottom = 11 },
-	})
-	window:EnableMouse(true)
-	window:SetMovable(true)
-	window:RegisterForDrag("LeftButton")
-	window:SetScript("OnDragStart", window.StartMoving)
-	window:SetScript("OnDragStop", window.StopMovingOrSizing)
+local function showImport()
+	mode = "import"
+	window.caption:SetText(L.IMPORT_TITLE)
+	modeButtons.action.label:SetText(L.IMPORT_SHOW)
+	area.edit:SetText("")
+	area.edit:SetFocus()
+	setInfo(L.IMPORT_HINT)
+end
+
+local function doImport()
+	local setup, err = ns.Import.Decode(area.edit:GetText())
+	if not setup then
+		setInfo(L[err] or err, Style.color.warn)
+		return
+	end
+	SaroniteDB.lastSetup = area.edit:GetText()
 	window:Hide()
-	-- Escape closes the window like any Blizzard panel.
-	table.insert(UISpecialFrames, "SaroniteFrame")
+	ns.SetupView.Show(setup)
+end
 
-	local title = window:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
-	title:SetPoint("TOP", 0, -18)
-	title:SetText(L.TITLE)
+local function create()
+	window = Style.Window("SaroniteFrame", 560, 300, "")
 
-	local closeX = CreateFrame("Button", nil, window, "UIPanelCloseButton")
-	closeX:SetPoint("TOPRIGHT", -6, -6)
+	area = Style.EditArea(window)
+	area:SetPoint("TOPLEFT", 10, -40)
+	area:SetPoint("BOTTOMRIGHT", -10, 84)
 
-	local scroll = CreateFrame("ScrollFrame", "SaroniteScroll", window, "UIPanelScrollFrameTemplate")
-	scroll:SetPoint("TOPLEFT", 22, -48)
-	scroll:SetPoint("BOTTOMRIGHT", -40, 96)
-
-	editBox = CreateFrame("EditBox", nil, scroll)
-	editBox:SetMultiLine(true)
-	editBox:SetAutoFocus(false)
-	editBox:SetMaxLetters(0)
-	editBox:SetFontObject(ChatFontNormal)
-	editBox:SetWidth(490)
-	editBox:SetScript("OnEscapePressed", function() window:Hide() end)
-	editBox:SetScript("OnEditFocusGained", function(self) self:HighlightText() end)
-	-- Read-only: undo any typing so a stray key press cannot corrupt the string.
-	editBox:SetScript("OnTextChanged", function(self, userInput)
-		if userInput and self:GetText() ~= currentText then
-			self:SetText(currentText)
+	local edit = area.edit
+	edit:SetScript("OnEscapePressed", function() window:Hide() end)
+	edit:SetScript("OnEditFocusGained", function(self)
+		if mode == "export" then self:HighlightText() end
+	end)
+	-- In export mode the box is read-only: undo typing.
+	edit:SetScript("OnTextChanged", function(self, userInput)
+		if mode == "export" and userInput and self:GetText() ~= exportText then
+			self:SetText(exportText)
 			self:HighlightText()
 		end
 	end)
-	scroll:SetScrollChild(editBox)
-	-- Clicking anywhere in the text area focuses and re-selects the string.
-	scroll:EnableMouse(true)
-	scroll:SetScript("OnMouseDown", function()
-		editBox:SetFocus()
-		editBox:HighlightText()
+
+	info = Style.Text(window, 11)
+	info:SetPoint("TOPLEFT", area, "BOTTOMLEFT", 2, -6)
+	info:SetPoint("RIGHT", window, "RIGHT", -12, 0)
+	info:SetJustifyV("TOP")
+
+	modeButtons = {}
+	local action = Style.Button(window, L.REFRESH, 120, 22)
+	action:SetPoint("BOTTOMLEFT", 10, 10)
+	action:SetScript("OnClick", function()
+		if mode == "export" then showExport() else doImport() end
 	end)
+	modeButtons.action = action
 
-	infoText = window:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-	infoText:SetPoint("TOPLEFT", scroll, "BOTTOMLEFT", 0, -8)
-	infoText:SetPoint("RIGHT", window, "RIGHT", -24, 0)
-	infoText:SetJustifyH("LEFT")
-	infoText:SetJustifyV("TOP")
+	local toggle = Style.Button(window, L.IMPORT, 120, 22)
+	toggle:SetPoint("LEFT", action, "RIGHT", 6, 0)
+	toggle:SetScript("OnClick", function(self)
+		if mode == "export" then
+			showImport()
+			self.label:SetText(L.EXPORT)
+		else
+			showExport()
+			self.label:SetText(L.IMPORT)
+		end
+	end)
+	modeButtons.toggle = toggle
 
-	local refresh = CreateFrame("Button", nil, window, "UIPanelButtonTemplate")
-	refresh:SetWidth(110)
-	refresh:SetHeight(24)
-	refresh:SetPoint("BOTTOMRIGHT", window, "BOTTOM", -6, 18)
-	refresh:SetText(L.REFRESH)
-	refresh:SetScript("OnClick", UI.Refresh)
-
-	local close = CreateFrame("Button", nil, window, "UIPanelButtonTemplate")
-	close:SetWidth(110)
-	close:SetHeight(24)
-	close:SetPoint("BOTTOMLEFT", window, "BOTTOM", 6, 18)
-	close:SetText(L.CLOSE)
-	close:SetScript("OnClick", function() window:Hide() end)
+	local last = Style.Button(window, L.LAST_SETUP, 140, 22)
+	last:SetPoint("BOTTOMRIGHT", -10, 10)
+	last:SetScript("OnClick", function()
+		local setup = SaroniteDB.lastSetup and ns.Import.Decode(SaroniteDB.lastSetup)
+		if setup then
+			window:Hide()
+			ns.SetupView.Show(setup)
+		else
+			setInfo(L.NO_LAST_SETUP, Style.color.warn)
+		end
+	end)
 end
 
-function UI.Show()
-	if not window then CreateWindow() end
+function UI.Show(which)
+	if not window then create() end
 	window:Show()
-	UI.Refresh()
+	if which == "import" then
+		showImport()
+		modeButtons.toggle.label:SetText(L.EXPORT)
+	else
+		showExport()
+		modeButtons.toggle.label:SetText(L.IMPORT)
+	end
 end
 
 function UI.Toggle()
@@ -133,10 +148,7 @@ end
 local function CreateCharacterButton()
 	if not PaperDollFrame then return end
 
-	local button = CreateFrame("Button", "SaroniteCharacterButton", PaperDollFrame, "UIPanelButtonTemplate")
-	button:SetWidth(80)
-	button:SetHeight(22)
-	button:SetText(L.BUTTON)
+	local button = Style.Button(PaperDollFrame, L.BUTTON, 72, 20)
 	button:SetMovable(true)
 	button:RegisterForDrag("LeftButton")
 
@@ -144,14 +156,13 @@ local function CreateCharacterButton()
 	if pos then
 		button:SetPoint("TOPLEFT", PaperDollFrame, "TOPLEFT", pos.x, pos.y)
 	elseif CharacterMainHandSlot then
-		-- Bottom left, in the free space next to the weapon slots (mirrors
-		-- where Pawn puts its button on the right).
+		-- Bottom left, in the free space next to the weapon slots.
 		button:SetPoint("BOTTOMRIGHT", CharacterMainHandSlot, "BOTTOMLEFT", -12, 0)
 	else
 		button:SetPoint("BOTTOMLEFT", PaperDollFrame, "BOTTOMLEFT", 24, 86)
 	end
 
-	button:SetScript("OnClick", UI.Show)
+	button:SetScript("OnClick", function() UI.Show() end)
 	button:SetScript("OnDragStart", function(self)
 		if IsShiftKeyDown() then self:StartMoving() end
 	end)
@@ -167,13 +178,19 @@ local function CreateCharacterButton()
 		self:SetPoint("TOPLEFT", PaperDollFrame, "TOPLEFT", x, y)
 		SaroniteDB.buttonPos = { x = x, y = y }
 	end)
+
+	local onEnter, onLeave = button:GetScript("OnEnter"), button:GetScript("OnLeave")
 	button:SetScript("OnEnter", function(self)
+		onEnter(self)
 		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-		GameTooltip:SetText(L.TITLE)
+		GameTooltip:SetText("Saronite")
 		GameTooltip:AddLine(L.BUTTON_TOOLTIP, 1, 1, 1, true)
 		GameTooltip:Show()
 	end)
-	button:SetScript("OnLeave", function() GameTooltip:Hide() end)
+	button:SetScript("OnLeave", function(self)
+		onLeave(self)
+		GameTooltip:Hide()
+	end)
 end
 
 function UI.Init()

@@ -32,7 +32,8 @@ record types and unknown keys (forward compatibility within a version).
 | `G` | group, ids | Six glyph spell ids, comma separated, `0` = empty socket |
 | `P` | key, rank, max | Profession: `ALCHEMY BLACKSMITHING ENCHANTING ENGINEERING HERBALISM INSCRIPTION JEWELCRAFTING LEATHERWORKING MINING SKINNING TAILORING` |
 | `S` | key, value | Character sheet snapshot (see below) |
-| `I` | 20 fields | Item (see below) |
+| `I` | 22 fields | Item (see below) |
+| `J` | gem id, stats | Stats of a gem item used in the exported items (`STR=16`) |
 
 ### Header keys
 
@@ -67,7 +68,7 @@ from talents itself), `expMH` `expOH`
 ### Items (`I`)
 
 ```
-I|loc|slot|id|enchant|j1|j2|j3|j4|suffix|unique|g1|g2|g3|g4|count|quality|ilvl|sockets|stats|type
+I|loc|slot|id|enchant|j1|j2|j3|j4|suffix|unique|g1|g2|g3|g4|count|quality|ilvl|sockets|stats|type|usable|bonus
 ```
 
 | Field | Meaning |
@@ -86,6 +87,8 @@ I|loc|slot|id|enchant|j1|j2|j3|j4|suffix|unique|g1|g2|g3|g4|count|quality|ilvl|s
 | `sockets` | base sockets of the item: letters `M` meta, `R` red, `Y` yellow, `B` blue, `P` prismatic. Extra sockets (belt buckle, blacksmith) are **not** listed — a gem in `g*` beyond these letters means an extra socket |
 | `stats` | `CODE=value` pairs from `GetItemStats`, comma separated, sorted. May be empty for bag/bank items when trimmed |
 | `type` | equip location without the `INVTYPE_` prefix: `HEAD NECK SHOULDER CHEST ROBE WAIST LEGS FEET WRIST HAND FINGER TRINKET CLOAK WEAPON SHIELD 2HWEAPON WEAPONMAINHAND WEAPONOFFHAND HOLDABLE RANGED RANGEDRIGHT THROWN RELIC`; empty for gems |
+| `usable` | `1` the player can equip it, `0` the tooltip shows a red requirement (armor type, class, level). Empty in older exports = usable |
+| `bonus` | socket bonus as the client shows it without the "Socket Bonus:" prefix, localized (`+6 Strength`, `+6 к силе`) |
 
 Stat codes: `STR AGI STA INT SPI HIT CRIT HASTE EXP ARP AP RAP FAP SP SPEN
 MP5 HP5 DEF DODGE PARRY BLOCK BLOCKV RESIL ARMOR DPS`. Unknown keys are sent

@@ -113,23 +113,68 @@ local function GemItemIDs(link)
 	return ids
 end
 
+-- StatCodes converts GetItemStats keys into the export's stat codes.
+function Scanner.StatCodes(raw)
+	local stats = {}
+	for key, value in pairs(raw or {}) do
+		if not SOCKET_CODES[key] then
+			local code = STAT_CODES[key] or (string.gsub(string.gsub(key, "^ITEM_MOD_", ""), "_SHORT$", ""))
+			stats[code] = value
+		end
+	end
+	return stats
+end
+
 local function SocketsAndStats(link)
 	local raw = GetItemStats(link) or {}
-	local sockets, stats = {}, {}
-
+	local sockets = {}
 	for _, key in ipairs(SOCKET_ORDER) do
 		for _ = 1, toint(raw[key]) do
 			sockets[#sockets + 1] = SOCKET_CODES[key]
 		end
 	end
+	return table.concat(sockets), Scanner.StatCodes(raw)
+end
 
-	for key, value in pairs(raw) do
-		if not SOCKET_CODES[key] then
-			local code = STAT_CODES[key] or string.gsub(string.gsub(key, "^ITEM_MOD_", ""), "_SHORT$", "")
-			stats[code] = value
-		end
+-- Tooltip scan: whether the player can use the item (no red requirement
+-- lines, which is locale independent) and its socket bonus text.
+local scanTip, bonusPattern
+
+local function ScanTooltip()
+	if not scanTip then
+		scanTip = CreateFrame("GameTooltip", "SaroniteScanTooltip", nil, "GameTooltipTemplate")
+		local fmt = ITEM_SOCKET_BONUS or "Socket Bonus: %s"
+		fmt = string.gsub(fmt, "[%(%)%.%+%-%*%?%[%]%^%$]", "%%%0")
+		bonusPattern = "^" .. string.gsub(fmt, "%%s", "(.+)") .. "$"
 	end
-	return table.concat(sockets), stats
+	return scanTip
+end
+
+local function isRed(fs)
+	if not fs or not fs:GetText() then return false end
+	local r, g, b = fs:GetTextColor()
+	return r and r > 0.99 and g < 0.2 and b < 0.2
+end
+
+function Scanner.TooltipInfo(link)
+	local tip = ScanTooltip()
+	tip:SetOwner(WorldFrame, "ANCHOR_NONE")
+	tip:ClearLines()
+	tip:SetHyperlink(link)
+
+	local usable, bonus = true, ""
+	for i = 1, tip:NumLines() or 0 do
+		local left = _G["SaroniteScanTooltipTextLeft" .. i]
+		local right = _G["SaroniteScanTooltipTextRight" .. i]
+		if isRed(left) or isRed(right) then usable = false end
+		local text = left and left:GetText()
+		local match = text and string.match(text, bonusPattern)
+		if match then bonus = match end
+	end
+	tip:Hide()
+	-- Drop color codes; the bot parses the plain text.
+	bonus = string.gsub(string.gsub(bonus, "|c%x%x%x%x%x%x%x%x", ""), "|r", "")
+	return usable, bonus
 end
 
 -- Builds the export record of one item. Returns nil for unreadable items.
@@ -139,6 +184,7 @@ local function ItemRecord(loc, slot, link, count)
 
 	local _, _, quality, ilvl, _, itemType, _, _, equipLoc = GetItemInfo(link)
 	local sockets, stats = SocketsAndStats(link)
+	local usable, bonus = Scanner.TooltipInfo(link)
 
 	return {
 		loc = loc,
@@ -158,6 +204,8 @@ local function ItemRecord(loc, slot, link, count)
 		stats = stats,
 		itemType = itemType,
 		equipLoc = equipLoc,
+		usable = usable,
+		bonus = bonus,
 	}
 end
 
