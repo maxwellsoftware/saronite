@@ -1,0 +1,30 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: tests/go.mod
+          cache-dependency-path: tests/go.sum
+      - run: go test ./...
+        working-directory: tests
+      - name: Check that the tag matches the .toc version
+        run: |
+          toc_version=$(sed -n 's/^## Version: //p' FrostmourneGear/FrostmourneGear.toc | tr -d '\r')
+          test "v${toc_version}" = "${GITHUB_REF_NAME}" || { echo "tag ${GITHUB_REF_NAME} != toc v${toc_version}"; exit 1; }
+      - name: Package
+        run: zip -r "FrostmourneGear-${GITHUB_REF_NAME#v}.zip" FrostmourneGear
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" "FrostmourneGear-${GITHUB_REF_NAME#v}.zip" --generate-notes
