@@ -56,7 +56,8 @@ local function itemLine(out, item, withStats)
 		num(item.suffix), num(item.unique),
 		num(item.gems[1]), num(item.gems[2]), num(item.gems[3]), num(item.gems[4]),
 		num(item.count), num(item.quality), num(item.ilvl), item.sockets,
-		withStats and statsField(item.stats) or "")
+		withStats and statsField(item.stats) or "",
+		(string.gsub(item.equipLoc or "", "^INVTYPE_", "")))
 end
 
 -- Snapshot gathers everything once; Build may then serialize it several times

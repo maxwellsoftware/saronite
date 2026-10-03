@@ -207,9 +207,9 @@ function Scanner.ScanBank()
 	for bag = FIRST_BANK_BAG, LAST_BANK_BAG do
 		ScanContainer("K", bag, items)
 	end
-	-- Drop fields that only exist to filter, keep SavedVariables small.
+	-- Drop the localized type name: it only exists for filtering.
 	for _, item in ipairs(items) do
-		item.itemType, item.equipLoc = nil, nil
+		item.itemType = nil
 	end
 	return items
 end

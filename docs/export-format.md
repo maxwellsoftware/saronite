@@ -32,7 +32,7 @@ record types and unknown keys (forward compatibility within a version).
 | `G` | group, ids | Six glyph spell ids, comma separated, `0` = empty socket |
 | `P` | key, rank, max | Profession: `ALCHEMY BLACKSMITHING ENCHANTING ENGINEERING HERBALISM INSCRIPTION JEWELCRAFTING LEATHERWORKING MINING SKINNING TAILORING` |
 | `S` | key, value | Character sheet snapshot (see below) |
-| `I` | 19 fields | Item (see below) |
+| `I` | 20 fields | Item (see below) |
 
 ### Header keys
 
@@ -66,7 +66,7 @@ Other keys: `hitMod` (melee/ranged hit % from talents and auras),
 ### Items (`I`)
 
 ```
-I|loc|slot|id|enchant|j1|j2|j3|j4|suffix|unique|g1|g2|g3|g4|count|quality|ilvl|sockets|stats
+I|loc|slot|id|enchant|j1|j2|j3|j4|suffix|unique|g1|g2|g3|g4|count|quality|ilvl|sockets|stats|type
 ```
 
 | Field | Meaning |
@@ -84,6 +84,7 @@ I|loc|slot|id|enchant|j1|j2|j3|j4|suffix|unique|g1|g2|g3|g4|count|quality|ilvl|s
 | `ilvl` | item level from the client cache |
 | `sockets` | base sockets of the item: letters `M` meta, `R` red, `Y` yellow, `B` blue, `P` prismatic. Extra sockets (belt buckle, blacksmith) are **not** listed — a gem in `g*` beyond these letters means an extra socket |
 | `stats` | `CODE=value` pairs from `GetItemStats`, comma separated, sorted. May be empty for bag/bank items when trimmed |
+| `type` | equip location without the `INVTYPE_` prefix: `HEAD NECK SHOULDER CHEST ROBE WAIST LEGS FEET WRIST HAND FINGER TRINKET CLOAK WEAPON SHIELD 2HWEAPON WEAPONMAINHAND WEAPONOFFHAND HOLDABLE RANGED RANGEDRIGHT THROWN RELIC`; empty for gems |
 
 Stat codes: `STR AGI STA INT SPI HIT CRIT HASTE EXP ARP AP RAP FAP SP SPEN
 MP5 HP5 DEF DODGE PARRY BLOCK BLOCKV RESIL ARMOR DPS`. Unknown keys are sent

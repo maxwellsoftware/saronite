@@ -214,16 +214,16 @@ func TestExportRoundTrip(t *testing.T) {
 		"S|expMH|19",
 		"S|buffs|2",
 		// head: enchant, meta + red gem, sockets MR, stats sorted by code
-		"I|E|1|40565|3817|3621|3519|0|0|0|0|41398|40111|0|0|1|4|226|MR|ARMOR=1914,HIT=49,STA=98,STR=74",
+		"I|E|1|40565|3817|3621|3519|0|0|0|0|41398|40111|0|0|1|4|226|MR|ARMOR=1914,HIT=49,STA=98,STR=74|HEAD",
 		// chest: second socket empty
-		"I|E|5|40550|3832|3519|0|0|0|0|0|40111|0|0|0|1|4|226|RY|EXP=40,STR=80",
+		"I|E|5|40550|3832|3519|0|0|0|0|0|40111|0|0|0|1|4|226|RY|EXP=40,STR=80|CHEST",
 		// cloak without enchant
-		"I|E|15|40403|0|0|0|0|0|0|0|0|0|0|0|1|4|226||STR=40",
-		"I|E|17|40703|3368|0|0|0|0|0|0|0|0|0|0|1|4|213||DPS=141.07,STR=35",
+		"I|E|15|40403|0|0|0|0|0|0|0|0|0|0|0|1|4|226||STR=40|CLOAK",
+		"I|E|17|40703|3368|0|0|0|0|0|0|0|0|0|0|1|4|213||DPS=141.07,STR=35|WEAPON",
 		// gems stack from bags
-		"I|B|2:1|40111|0|0|0|0|0|0|0|0|0|0|0|5|3|80||",
+		"I|B|2:1|40111|0|0|0|0|0|0|0|0|0|0|0|5|3|80|||",
 		// random suffix item from the bank keeps its unique id
-		"I|K|-1:4|36000|0|0|0|0|0|-39|2031682|0|0|0|0|1|3|187||",
+		"I|K|-1:4|36000|0|0|0|0|0|-39|2031682|0|0|0|0|1|3|187|||CLOAK",
 	} {
 		if !has(want) {
 			t.Errorf("missing line %q", want)
