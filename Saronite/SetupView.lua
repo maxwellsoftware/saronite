@@ -18,8 +18,8 @@ local WIDTH, HEIGHT = 640, 420
 
 local QUESTION = "Interface\\Icons\\INV_Misc_QuestionMark"
 
-local window, rows, info
-local current
+local window, rows, info, roleButton
+local current, onToggleRole
 local pending = 0 -- refresh attempts left while item data loads
 
 -- Items the client has not cached yet are requested from the server by
@@ -191,6 +191,7 @@ end
 
 local function render()
 	if not current then return end
+	for _, row in pairs(rows) do row:Show() end
 	window.caption:SetText((current.name or "") .. "  ·  " .. (current.spec or "") .. "  ·  " .. (current.phase or ""))
 	for slot, row in pairs(rows) do
 		fillRow(row, current.slots[slot])
@@ -213,6 +214,13 @@ local function render()
 		lines[#lines + 1] = "|cff8c8c94" .. note .. "|r"
 	end
 	info:SetText(table.concat(lines, "\n\n"))
+
+	if current.canTank and onToggleRole then
+		roleButton.label:SetText(current.tank and L.AS_DPS or L.AS_TANK)
+		roleButton:Show()
+	else
+		roleButton:Hide()
+	end
 end
 
 local function create()
@@ -247,6 +255,13 @@ local function create()
 	info:SetJustifyV("TOP")
 	info:SetSpacing(2)
 
+	roleButton = Style.Button(window, L.AS_TANK, 96, 18)
+	roleButton:SetPoint("TOPRIGHT", -32, -6)
+	roleButton:SetScript("OnClick", function()
+		if onToggleRole then onToggleRole() end
+	end)
+	roleButton:Hide()
+
 	-- Refresh while uncached items arrive from the server.
 	local elapsed = 0
 	window:SetScript("OnUpdate", function(_, dt)
@@ -259,10 +274,33 @@ local function create()
 	end)
 end
 
-function SetupView.Show(setup)
+-- Show renders a setup; toggleRole, when given, recomputes it as tank/dps.
+function SetupView.Show(setup, toggleRole)
 	if not window then create() end
 	current = setup
+	onToggleRole = toggleRole
 	pending = 0
 	render()
 	window:Show()
+end
+
+local function message(caption, text)
+	if not window then create() end
+	current = nil
+	window.caption:SetText(caption or "")
+	for _, row in pairs(rows) do
+		row.slot = nil
+		row:Hide()
+	end
+	roleButton:Hide()
+	info:SetText(text)
+	window:Show()
+end
+
+function SetupView.ShowBusy(name)
+	message(name, L.CALCULATING)
+end
+
+function SetupView.ShowError(text)
+	message("", "|cffffb340" .. text .. "|r")
 end

@@ -54,14 +54,12 @@ local function showImport()
 end
 
 local function doImport()
-	local setup, err = ns.Import.Decode(area.edit:GetText())
-	if not setup then
+	local err = ns.Planner.Paste(area.edit:GetText())
+	if err then
 		setInfo(L[err] or err, Style.color.warn)
 		return
 	end
-	SaroniteDB.lastSetup = area.edit:GetText()
 	window:Hide()
-	ns.SetupView.Show(setup)
 end
 
 local function create()
@@ -110,13 +108,19 @@ local function create()
 	end)
 	modeButtons.toggle = toggle
 
-	local last = Style.Button(window, L.LAST_SETUP, 140, 22)
-	last:SetPoint("BOTTOMRIGHT", -10, 10)
+	local compute = Style.Button(window, L.COMPUTE, 150, 22)
+	compute:SetPoint("BOTTOMRIGHT", -10, 10)
+	compute.label:SetTextColor(unpack(Style.color.accent))
+	compute:SetScript("OnClick", function()
+		window:Hide()
+		ns.Planner.Mine()
+	end)
+
+	local last = Style.Button(window, L.LAST_SETUP, 130, 22)
+	last:SetPoint("RIGHT", compute, "LEFT", -6, 0)
 	last:SetScript("OnClick", function()
-		local setup = SaroniteDB.lastSetup and ns.Import.Decode(SaroniteDB.lastSetup)
-		if setup then
+		if ns.Planner.ShowLast() then
 			window:Hide()
-			ns.SetupView.Show(setup)
 		else
 			setInfo(L.NO_LAST_SETUP, Style.color.warn)
 		end
@@ -162,7 +166,14 @@ local function CreateCharacterButton()
 		button:SetPoint("BOTTOMLEFT", PaperDollFrame, "BOTTOMLEFT", 24, 86)
 	end
 
-	button:SetScript("OnClick", function() UI.Show() end)
+	button:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+	button:SetScript("OnClick", function(_, mouse)
+		if mouse == "RightButton" then
+			UI.Show()
+		else
+			ns.Planner.Mine()
+		end
+	end)
 	button:SetScript("OnDragStart", function(self)
 		if IsShiftKeyDown() then self:StartMoving() end
 	end)

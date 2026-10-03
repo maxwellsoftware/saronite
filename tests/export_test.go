@@ -33,7 +33,7 @@ type addon struct {
 
 func load(t *testing.T, extraLua string) *addon {
 	t.Helper()
-	L := lua.NewState()
+	L := lua.NewState(lua.Options{RegistrySize: 1 << 16, RegistryMaxSize: 1 << 22, CallStackSize: 1024})
 	t.Cleanup(L.Close)
 
 	for _, f := range []string{"wowstub.lua", "fixture_character.lua"} {
