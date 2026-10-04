@@ -258,7 +258,7 @@ end
 local PHRASES = {
 	{ "critical strike rating", "CRIT" }, { "armor penetration rating", "ARP" }, { "expertise rating", "EXP" },
 	{ "resilience rating", "RESIL" }, { "defense rating", "DEF" }, { "dodge rating", "DODGE" }, { "parry rating", "PARRY" },
-	{ "block rating", "BLOCK" }, { "haste rating", "HASTE" }, { "hit rating", "HIT" }, { "spell power", "SP" },
+	{ "block rating", "BLOCK" }, { "block value", "BLOCKV" }, { "haste rating", "HASTE" }, { "hit rating", "HIT" }, { "spell power", "SP" },
 	{ "attack power", "AP" }, { "all stats", "ALL" }, { "strength", "STR" }, { "agility", "AGI" }, { "stamina", "STA" },
 	{ "intellect", "INT" }, { "spirit", "SPI" }, { "mana per 5 sec", "MP5" }, { "mana every 5 seconds", "MP5" },
 	{ "к рейтингу критического удара", "CRIT" }, { "к рейтингу пробивания брони", "ARP" }, { "к рейтингу мастерства", "EXP" },
@@ -267,7 +267,8 @@ local PHRASES = {
 	{ "к рейтингу скорости", "HASTE" }, { "к рейтингу меткости", "HIT" }, { "к силе заклинаний", "SP" },
 	{ "к силе атаки", "AP" }, { "ко всем характеристикам", "ALL" }, { "к силе", "STR" }, { "к ловкости", "AGI" },
 	{ "к выносливости", "STA" }, { "к интеллекту", "INT" }, { "к духу", "SPI" }, { "ед. маны каждые 5", "MP5" },
-	{ "к мане каждые 5", "MP5" }, { "ед. маны раз в 5", "MP5" },
+	{ "к мане каждые 5", "MP5" }, { "ед. маны раз в 5", "MP5" }, { "к показателю блокирования", "BLOCKV" },
+	{ "к показателю блока", "BLOCKV" },
 }
 
 -- StatsFromText parses "+8 Strength", "+4 к рейтингу меткости" and

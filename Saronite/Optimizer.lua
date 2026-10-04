@@ -878,6 +878,8 @@ function Optimizer.Run(c, data, tank, yield)
 	o:polishSockets(best)
 	local after = o:totals(best)
 	o:markChanges(best, current)
+	-- after markChanges: it may swap rings / trinkets to their current slots
+	local upgrades = o:checkUpgrades(best, key)
 	local beforeStats, afterStats = o:gearStats(current), o:gearStats(best)
 	local bis = {}
 	local alternatives = {}
@@ -911,6 +913,7 @@ function Optimizer.Run(c, data, tank, yield)
 		alternatives = alternatives,
 		plan = plan,
 		data = data,
+		upgrades = upgrades,
 	}
 end
 
@@ -1088,8 +1091,10 @@ local function candidates(r, slot, item, avg, reach, have, taken)
 			out[#out + 1] = { id = id, ilvl = ilvl, ep = ep, tier = tier }
 		end
 	end
+	-- "your level": the average plus a little (an average of 199 in 200 gear)
+	local level = avg + 3
 	table.sort(out, function(a, b)
-		local ga, gb = a.ilvl <= avg and 0 or 1, b.ilvl <= avg and 0 or 1
+		local ga, gb = a.ilvl <= level and 0 or 1, b.ilvl <= level and 0 or 1
 		if ga ~= gb then return ga < gb end
 		if a.ilvl ~= b.ilvl then
 			if ga == 0 then return a.ilvl > b.ilvl end
@@ -1104,7 +1109,11 @@ end
 
 -- pickUpgrades: up to 2 upgrades per slot. Rings and trinkets are a pair:
 -- the weaker of the two picks first and no item is offered for both.
-local function pickUpgrades(r, avg, reach, have)
+-- accept(slot, candidate) confirms a candidate (tried in the real setup);
+-- at most MAX_TRIES candidates are tried per slot.
+local MAX_TRIES = 8
+
+local function pickUpgrades(r, avg, reach, have, accept)
 	local out = {}
 	local data = ns.Data.upgrades and ns.Data.upgrades[r.specKey]
 	if not data then return out end
@@ -1113,9 +1122,12 @@ local function pickUpgrades(r, avg, reach, have)
 		if not s then return end
 		local list = candidates(r, slot, s.item, avg, reach, have, taken)
 		local ups = {}
-		for i = 1, math.min(2, #list) do
-			ups[i] = list[i]
-			taken[list[i].id] = true
+		for i = 1, math.min(MAX_TRIES, #list) do
+			if #ups >= 2 then break end
+			if not accept or accept(slot, list[i]) then
+				ups[#ups + 1] = list[i]
+				taken[list[i].id] = true
+			end
 		end
 		out[slot] = ups
 	end
@@ -1188,7 +1200,8 @@ function Optimizer.View(c, r)
 	view.reach = view.averageLevel + REACH
 	local have = {}
 	for _, it in ipairs(c.items) do have[it.id] = true end
-	local upgrades = pickUpgrades(r, view.averageLevel, view.reach, have)
+	-- confirmed in the real setup by Optimizer.Run (O:checkUpgrades)
+	local upgrades = r.upgrades or {}
 	if r.after.hitCap > 0 then
 		view.caps.hit = { before = r.before.hitPct, after = r.after.hitPct, cap = r.after.hitCap,
 			rating = r.after.hitRating, talent = r.after.hitTalent }
@@ -1274,7 +1287,10 @@ function Optimizer.View(c, r)
 		local ups = upgrades[slot]
 		if ups and #ups > 0 then
 			v.alternatives, v.alternativeLevels = {}, {}
-			for i, u in ipairs(ups) do v.alternatives[i], v.alternativeLevels[i] = u.id, u.ilvl end
+			v.alternativeGains = {}
+			for i, u in ipairs(ups) do
+				v.alternatives[i], v.alternativeLevels[i], v.alternativeGains[i] = u.id, u.ilvl, u.gain or 0
+			end
 			v.upgrades = true
 		elseif v.offSpec or v.weak then
 			v.alternatives = alternativesFor(r.alternatives and r.alternatives[slot], s.item.id)
@@ -1318,5 +1334,55 @@ function Optimizer.Start(c, data, tank, done)
 				return
 			end
 		until not deadline or debugprofilestop() > deadline
+	end)
+end
+
+-- Upgrades confirmed in the real setup: the candidate replaces the item,
+-- gets its gems and enchant, and is kept only if the whole setup scores
+-- higher (caps, socket bonuses, set rules included). Trinkets are ranked
+-- by the BiS list instead: their procs are not in the stats.
+function O:upgradeGain(setup, slot, id)
+	local d = ns.Data.items and ns.Data.items[id]
+	if not d then return nil end
+	local it = { id = id, loc = "U", slot = "", invSlot = 0, type = d[1], sockets = d[2], stats = d[3],
+		socketBonus = d[4], gems = { 0, 0, 0, 0 }, enchant = 0, quality = 4, ilvl = 0 }
+	local twoHand = setup[16] and setup[16].item.type == "2HWEAPON" and not self:titansGrip()
+	if slot == 17 and twoHand then return nil end
+	local base = self:totals(setup).score
+	local trial = cloneSetup(setup)
+	trial[slot] = self:newSlot(it, slot)
+	if slot == 16 and it.type == "2HWEAPON" and not self:titansGrip() then trial[17] = nil end
+	-- gems of the new item only: coordinate ascent, then the joint moves
+	local s = trial[slot]
+	for _ = 1, 2 do
+		for i = 1, #s.gems do
+			if string.sub(s.sockets, i, i) ~= "M" then
+				local best, bestScore = s.gems[i], self:totals(trial).score
+				for _, g in ipairs(self.gems) do
+					if g.id ~= best.id and not (g.color == "prismatic" and self:uniqueUsed(trial, g.id, slot, i)) then
+						s.gems[i] = g
+						local sc = self:totals(trial).score
+						if sc > bestScore + EPS then best, bestScore = g, sc end
+					end
+				end
+				s.gems[i] = best
+			end
+		end
+	end
+	self:socketMoves(trial, { slot })
+	return self:totals(trial).score - base
+end
+
+function O:checkUpgrades(setup, key)
+	local c = self.c
+	local avg = averageItemLevel(c)
+	local have = {}
+	for _, it in ipairs(c.items) do have[it.id] = true end
+	local r = { slots = setup, specKey = key, weights = self.w }
+	return pickUpgrades(r, avg, avg + REACH, have, function(slot, cand)
+		if slot == 13 or slot == 14 then return true end
+		local gain = self:upgradeGain(setup, slot, cand.id)
+		cand.gain = gain
+		return gain ~= nil and gain > 1
 	end)
 end

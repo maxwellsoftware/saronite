@@ -2,7 +2,7 @@
 ## Title: Saronite
 ## Notes: Builds the best setup from your gear: gems, enchants, caps, BiS lists, talents and glyphs (Whitemane Frostmourne).
 ## Notes-ruRU: Собирает лучший сетап из твоих вещей: камни, чары, капы, BiS-листы, таланты и символы (Whitemane Frostmourne).
-## Version: 0.9.1
+## Version: 0.9.2
 ## SavedVariables: SaroniteDB
 
 Libs\LibStub\LibStub.lua
