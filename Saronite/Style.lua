@@ -112,6 +112,15 @@ function Style.Window(name, width, height, title)
 	caption:SetText(title or "")
 	f.caption = caption
 
+	-- addon version in the corner, left of the RU / EN switch (for bug
+	-- reports and screenshots)
+	local version = Style.Text(f, 10, "latin")
+	version:SetPoint("RIGHT", f, "TOPRIGHT", -102, -15)
+	version:SetJustifyH("RIGHT")
+	version:SetTextColor(0.42, 0.42, 0.45)
+	version:SetText("v" .. (ns.VERSION or "?"))
+	f.version = version
+
 	local close = Style.Button(f, "×", 20, 18, "latin")
 	close:SetPoint("TOPRIGHT", -6, -6)
 	close:SetScript("OnClick", function() f:Hide() end)

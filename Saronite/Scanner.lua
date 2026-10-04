@@ -168,6 +168,8 @@ function Scanner.TooltipInfo(link)
 		local right = _G["SaroniteScanTooltipTextRight" .. i]
 		if isRed(left) or isRed(right) then usable = false end
 		local text = left and left:GetText()
+		-- the line may carry color codes (an inactive bonus is gray)
+		if text then text = string.gsub(string.gsub(text, "|c%x%x%x%x%x%x%x%x", ""), "|r", "") end
 		local match = text and string.match(text, bonusPattern)
 		if match then bonus = match end
 	end

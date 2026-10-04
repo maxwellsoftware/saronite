@@ -294,6 +294,32 @@ func TestUpgradesWithinReach(t *testing.T) {
 			}
 		})
 	})
+	// pairs: no item offered for both rings or both trinkets; nearest
+	// first: an item level above the average never precedes one below it
+	slots := view.RawGetString("slots").(*lua.LTable)
+	for _, pair := range [][2]int{{11, 12}, {13, 14}} {
+		seen := map[string]bool{}
+		for _, slot := range pair {
+			s, ok := slots.RawGetInt(slot).(*lua.LTable)
+			if !ok || s.RawGetString("upgrades") != lua.LTrue {
+				continue
+			}
+			above := false
+			levels := s.RawGetString("alternativeLevels").(*lua.LTable)
+			s.RawGetString("alternatives").(*lua.LTable).ForEach(func(i, id lua.LValue) {
+				if seen[id.String()] {
+					t.Errorf("slot %d: %v is offered for both slots of the pair", slot, id)
+				}
+				seen[id.String()] = true
+				l := lua.LVAsNumber(levels.RawGet(i))
+				if l > avg {
+					above = true
+				} else if above {
+					t.Errorf("slot %d: item level %v after one above the average", slot, l)
+				}
+			})
+		}
+	}
 	// the 174 caster ring on a feral druid has an upgrade at least
 	ring := view.RawGetString("slots").(*lua.LTable).RawGetInt(11).(*lua.LTable)
 	if ring.RawGetString("upgrades") != lua.LTrue {
@@ -304,4 +330,15 @@ func TestUpgradesWithinReach(t *testing.T) {
 	a.callFn(t, sv.RawGetString("Show"), view)
 	a.noErrors(t)
 	a.noRussian(t)
+}
+
+// The windows show the addon version in the corner.
+func TestWindowsShowVersion(t *testing.T) {
+	a := load(t, "")
+	a.callFn(t, a.ns.RawGetString("SetupView").(*lua.LTable).RawGetString("ShowBusy"), lua.LString("x"))
+	want := "v" + a.ns.RawGetString("VERSION").String()
+	frame := a.L.GetGlobal("SaroniteSetupFrame").(*lua.LTable)
+	if got := frame.RawGetString("version").(*lua.LTable).RawGetString("text").String(); got != want {
+		t.Errorf("version label = %q, want %q", got, want)
+	}
 }

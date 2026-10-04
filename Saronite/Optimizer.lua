@@ -405,12 +405,26 @@ function O:hitContext(setup)
 	return hc
 end
 
+-- Secondary criterion: when two setups are worth the same (a socket bonus
+-- of stamina for a DPS, hit over the cap), the one with more stats wins.
+-- 0.001 per point never outweighs a real difference in value.
+local SECONDARY_WEIGHT = 0.001
+local SECONDARY_STATS = { "STR", "AGI", "STA", "INT", "SPI", "HIT", "CRIT", "HASTE", "EXP", "ARP",
+	"DEF", "DODGE", "PARRY", "BLOCK", "SP", "AP", "MP5" }
+
+local function secondaryValue(stats)
+	local points = 0
+	for _, code in ipairs(SECONDARY_STATS) do points = points + (stats[code] or 0) end
+	return SECONDARY_WEIGHT * points
+end
+
 function O:totals(setup)
 	self:tick()
 	local stats = self:gearStats(setup)
 	local t = { score = 0, hitPct = 0, hitCap = 0, expSkill = 0, expCap = 0, defSkill = 0, defCap = 0, hasteRating = 0, hasteCap = 0 }
 	local v = self:statValue(stats)
 	for slot, s in pairs(setup) do v = v + self:weaponValue(s.item, slot) end
+	v = v + secondaryValue(stats)
 
 	local hc = self:hitContext(setup)
 	if self.hitCapPct > 0 and self.hitPre > 0 then
@@ -1044,26 +1058,83 @@ end
 
 local UPGRADE_SLOT = { [12] = 11, [14] = 13 }
 
--- upgradesFor: up to 2 {id, ilvl} better than the item and within reach.
-local function upgradesFor(r, slot, item, reach, have)
+-- itemValue for upgrades: EP, or for trinkets (procs are not in the
+-- stats) the BiS list rank of the trinket, 0 when it is not in the list.
+local function slotValue(list, slot, item, w, gem)
+	if slot == 13 or slot == 14 then
+		for _, e in ipairs(list) do
+			if item and e[1] == item.id then return e[3] end
+		end
+		return 0
+	end
+	return upgradeEP(item, slot, w, gem)
+end
+
+-- candidates: items better than the equipped one and within reach,
+-- nearest first: item levels up to the character's average from the
+-- closest down, then the ones above it from the closest up; within a level
+-- the easier source (dungeons, emblems before raids), then the value.
+local function candidates(r, slot, item, avg, reach, have, taken)
 	local data = ns.Data.upgrades and ns.Data.upgrades[r.specKey]
 	local list = data and data[UPGRADE_SLOT[slot] or slot]
-	if not list then return nil end
-	local w = r.weights or {}
+	if not list then return {} end
 	local trinket = slot == 13 or slot == 14
-	local current = upgradeEP(item, slot, w, data.gem)
+	local current = slotValue(list, slot, item, r.weights or {}, data.gem)
 	local out = {}
 	for _, e in ipairs(list) do
-		local id, ilvl, ep = e[1], e[2], e[3]
-		local better
-		if trinket then
-			better = ilvl > (item and item.ilvl or 0)
-		else
-			better = ep > current * 1.03 + 1
+		local id, ilvl, ep, tier = e[1], e[2], e[3], e[4] or 0
+		local better = trinket and ep > current or (not trinket and ep > current * 1.03 + 1)
+		if ilvl <= reach and better and not have[id] and not taken[id] then
+			out[#out + 1] = { id = id, ilvl = ilvl, ep = ep, tier = tier }
 		end
-		if #out < 2 and ilvl <= reach and better and not have[id] then
-			out[#out + 1] = { id = id, ilvl = ilvl }
+	end
+	table.sort(out, function(a, b)
+		local ga, gb = a.ilvl <= avg and 0 or 1, b.ilvl <= avg and 0 or 1
+		if ga ~= gb then return ga < gb end
+		if a.ilvl ~= b.ilvl then
+			if ga == 0 then return a.ilvl > b.ilvl end
+			return a.ilvl < b.ilvl
 		end
+		if a.tier ~= b.tier then return a.tier < b.tier end
+		if a.ep ~= b.ep then return a.ep > b.ep end
+		return a.id < b.id
+	end)
+	return out
+end
+
+-- pickUpgrades: up to 2 upgrades per slot. Rings and trinkets are a pair:
+-- the weaker of the two picks first and no item is offered for both.
+local function pickUpgrades(r, avg, reach, have)
+	local out = {}
+	local data = ns.Data.upgrades and ns.Data.upgrades[r.specKey]
+	if not data then return out end
+	local function take(slot, taken)
+		local s = r.slots[slot]
+		if not s then return end
+		local list = candidates(r, slot, s.item, avg, reach, have, taken)
+		local ups = {}
+		for i = 1, math.min(2, #list) do
+			ups[i] = list[i]
+			taken[list[i].id] = true
+		end
+		out[slot] = ups
+	end
+	for slot in pairs(r.slots) do
+		if slot ~= 11 and slot ~= 12 and slot ~= 13 and slot ~= 14 then take(slot, {}) end
+	end
+	for _, pair in ipairs({ { 11, 12 }, { 13, 14 } }) do
+		local a, b = pair[1], pair[2]
+		local list = data[UPGRADE_SLOT[b] or b] or {}
+		local function value(slot)
+			local s = r.slots[slot]
+			return s and slotValue(list, slot, s.item, r.weights or {}, data.gem) or -1, s and s.item.ilvl or 0
+		end
+		local va, la = value(a)
+		local vb, lb = value(b)
+		if vb < va or (vb == va and lb < la) then a, b = b, a end
+		local taken = {}
+		take(a, taken)
+		take(b, taken)
 	end
 	return out
 end
@@ -1117,6 +1188,7 @@ function Optimizer.View(c, r)
 	view.reach = view.averageLevel + REACH
 	local have = {}
 	for _, it in ipairs(c.items) do have[it.id] = true end
+	local upgrades = pickUpgrades(r, view.averageLevel, view.reach, have)
 	if r.after.hitCap > 0 then
 		view.caps.hit = { before = r.before.hitPct, after = r.after.hitPct, cap = r.after.hitCap,
 			rating = r.after.hitRating, talent = r.after.hitTalent }
@@ -1199,7 +1271,7 @@ function Optimizer.View(c, r)
 		end
 		-- upgrades within reach for every slot; off-spec and weak items
 		-- fall back to the BiS list when the phase data has none
-		local ups = upgradesFor(r, slot, s.item, view.reach, have)
+		local ups = upgrades[slot]
 		if ups and #ups > 0 then
 			v.alternatives, v.alternativeLevels = {}, {}
 			for i, u in ipairs(ups) do v.alternatives[i], v.alternativeLevels[i] = u.id, u.ilvl end
