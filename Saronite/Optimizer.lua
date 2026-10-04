@@ -106,7 +106,8 @@ function O:statValue(stats)
 	local w = self.w
 	for code, x in pairs(stats) do
 		if code ~= "HIT" and code ~= "EXP" and code ~= "DPS" and code ~= "FAP"
-			and not (code == "DEF" and (self.defPre or 0) > 0) then -- DEF: valued against the cap in totals
+			and not (code == "DEF" and (self.defPre or 0) > 0) -- DEF, HASTE: valued against the cap in totals
+			and not (code == "HASTE" and (self.hasteBP or 0) > 0) then
 			v = v + (w[code] or 0) * x
 		end
 	end
@@ -183,6 +184,21 @@ function O:prepare()
 	self.baseExp = math.max(0, (s.expertise or 0) - (gear.EXP or 0))
 	self.expTalents = math.max(0, (s.expMH or 0) - math.floor((s.expertise or 0) / Rules.expertisePerPoint))
 	self.baseDef = math.max(0, (s.defense or 0) - (gear.DEF or 0))
+	self.baseArp = math.max(0, (s.arp or 0) - (gear.ARP or 0))
+
+	-- the main haste breakpoint, valued like a cap where guides chase it
+	self.hasteBP, self.hastePre, self.hastePost, self.baseHaste = 0, 0, 0, 0
+	local h = Rules.HasteSpec(self.sim, self.spec.tab)
+	if h and h.pursue then
+		local ranks = {}
+		for _, t in ipairs(Character.ActiveTalents(c)) do
+			if not ranks[t.tab] then ranks[t.tab] = t.ranks end
+		end
+		self.hasteBP = Rules.HasteRatings(h, ranks)[1]
+		self.hastePre = math.max(self.w.HASTE or 0, 1.15 * self.gemUnit)
+		self.hastePost = h.post * (self.w.HASTE or 0)
+		self.baseHaste = math.max(0, (s.hasteSpell or 0) - (gear.HASTE or 0))
+	end
 end
 
 function O:candidates(match)
@@ -332,6 +348,7 @@ function O:itemValue(it, slot)
 	v = v + (self.hitPre + self.hitPost) / 2 * (stats.HIT or 0)
 	v = v + (self.expPre + self.expPost) / 2 * (stats.EXP or 0)
 	if self.defPre > 0 then v = v + (self.defPre + self.defPost) / 2 * (stats.DEF or 0) end
+	if self.hasteBP > 0 then v = v + (self.hastePre + self.hastePost) / 2 * (stats.HASTE or 0) end
 	v = v + self:weaponValue(it, slot)
 	v = v + string.len(it.sockets) * self.gemUnit * GEM_POINTS
 	local ench = self:enchantFor(it, slot)
@@ -391,7 +408,7 @@ end
 function O:totals(setup)
 	self:tick()
 	local stats = self:gearStats(setup)
-	local t = { score = 0, hitPct = 0, hitCap = 0, expSkill = 0, expCap = 0, defSkill = 0, defCap = 0 }
+	local t = { score = 0, hitPct = 0, hitCap = 0, expSkill = 0, expCap = 0, defSkill = 0, defCap = 0, hasteRating = 0, hasteCap = 0 }
 	local v = self:statValue(stats)
 	for slot, s in pairs(setup) do v = v + self:weaponValue(s.item, slot) end
 
@@ -434,6 +451,20 @@ function O:totals(setup)
 		t.defCap = Rules.defenseCap
 		t.defRating = total
 	end
+
+	if self.hasteBP > 0 then
+		local total = self.baseHaste + (stats.HASTE or 0)
+		v = v + self.hastePre * math.min(total, self.hasteBP) + self.hastePost * math.max(0, total - self.hasteBP)
+		v = v - self:shortfall(total, self.hasteBP)
+		t.hasteRating, t.hasteCap = total, self.hasteBP
+	end
+
+	-- armor penetration: 1400 rating is 100%, more does nothing
+	local wArp = self.w.ARP or 0
+	if wArp > 0 then
+		v = v - wArp * math.max(0, self.baseArp + (stats.ARP or 0) - Rules.arpCap)
+	end
+	t.arpRating = self.baseArp + (stats.ARP or 0)
 
 	local ok, meta = self:metaActive(setup)
 	if ok then
@@ -556,6 +587,154 @@ function O:optimizeGems(setup)
 	end
 end
 
+-- Socket colors. Coordinate ascent changes one socket at a time, so it
+-- cannot reach a socket bonus that needs two gems to change together. These
+-- moves change gems jointly and keep the result only if the whole setup
+-- scores higher (same order and rules as the Go code).
+
+-- socketSlots: indexes of the item's own sockets that take regular gems.
+local function socketSlots(s)
+	local out = {}
+	local base = s.item.sockets
+	for i = 1, math.min(string.len(base), #s.gems) do
+		if string.sub(base, i, i) ~= "M" then out[#out + 1] = i end
+	end
+	return out
+end
+
+-- permutations of 1..n in lexicographic order.
+local function permutations(n)
+	local out, prefix, used = {}, {}, {}
+	local function rec()
+		if #prefix == n then
+			local copy = {}
+			for k, v in ipairs(prefix) do copy[k] = v end
+			out[#out + 1] = copy
+			return
+		end
+		for i = 1, n do
+			if not used[i] then
+				used[i] = true
+				prefix[#prefix + 1] = i
+				rec()
+				prefix[#prefix] = nil
+				used[i] = false
+			end
+		end
+	end
+	rec()
+	return out
+end
+
+-- arrangeGems tries every order of the item's gems over its sockets.
+function O:arrangeGems(setup, slot)
+	local s = setup[slot]
+	local idx = socketSlots(s)
+	if #idx < 2 then return false end
+	local orig = {}
+	for k, i in ipairs(idx) do orig[k] = s.gems[i] end
+	local bestScore = self:totals(setup).score
+	local best
+	for _, perm in ipairs(permutations(#idx)) do
+		local same = true
+		for k, p in ipairs(perm) do
+			if orig[p].id ~= orig[k].id then same = false end
+			s.gems[idx[k]] = orig[p]
+		end
+		if not same then
+			local sc = self:totals(setup).score
+			if sc > bestScore + EPS then best, bestScore = perm, sc end
+		end
+	end
+	for k, i in ipairs(idx) do
+		s.gems[i] = best and orig[best[k]] or orig[k]
+	end
+	return best ~= nil
+end
+
+-- matchColors fills all the item's sockets with gems of their colors (two
+-- passes, the second one sees the active bonus) and keeps that if better.
+function O:matchColors(setup, slot)
+	local s = setup[slot]
+	local idx = socketSlots(s)
+	if #idx == 0 or next(s.item.socketBonus or {}) == nil then return false end
+	local before = self:totals(setup).score
+	local orig = {}
+	for i, g in ipairs(s.gems) do orig[i] = g end
+	local function restore()
+		for i, g in ipairs(orig) do s.gems[i] = g end
+	end
+	for _ = 1, 2 do
+		for _, i in ipairs(idx) do
+			local socket = string.sub(s.item.sockets, i, i)
+			local best, bestScore = nil, -math.huge
+			for _, g in ipairs(self.gems) do
+				if Rules.Fits(g, socket) and not (g.color == "prismatic" and self:uniqueUsed(setup, g.id, slot, i)) then
+					s.gems[i] = g
+					local sc = self:totals(setup).score
+					if sc > bestScore + EPS then best, bestScore = g, sc end
+				end
+			end
+			if not best then
+				restore()
+				return false
+			end
+			s.gems[i] = best
+		end
+	end
+	if self:totals(setup).score > before + EPS then return true end
+	restore()
+	return false
+end
+
+-- swapGems exchanges gems between sockets of different items.
+function O:swapGems(setup)
+	local slots = sortedKeys(setup)
+	local changed = false
+	for ai, a in ipairs(slots) do
+		for bi = ai + 1, #slots do
+			local sa, sb = setup[a], setup[slots[bi]]
+			for i = 1, #sa.gems do
+				for j = 1, #sb.gems do
+					if string.sub(sa.sockets, i, i) ~= "M" and string.sub(sb.sockets, j, j) ~= "M"
+						and sa.gems[i].id ~= sb.gems[j].id then
+						local before = self:totals(setup).score
+						sa.gems[i], sb.gems[j] = sb.gems[j], sa.gems[i]
+						if self:totals(setup).score > before + EPS then
+							changed = true
+						else
+							sa.gems[i], sb.gems[j] = sb.gems[j], sa.gems[i]
+						end
+					end
+				end
+			end
+		end
+	end
+	return changed
+end
+
+function O:socketMoves(setup, slots)
+	local changed = false
+	for _, slot in ipairs(slots) do
+		if setup[slot] then
+			if self:matchColors(setup, slot) then changed = true end
+			if self:arrangeGems(setup, slot) then changed = true end
+		end
+	end
+	return changed
+end
+
+-- polishSockets: joint moves on every item and gem swaps between items,
+-- then single sockets again, until nothing improves.
+function O:polishSockets(setup)
+	for _ = 1, 4 do
+		local changed = self:socketMoves(setup, sortedKeys(setup))
+		if self:swapGems(setup) then changed = true end
+		if not changed then return end
+		self:optimizeGems(setup)
+	end
+end
+
 local function cloneSetup(setup)
 	local out = {}
 	for slot, s in pairs(setup) do
@@ -605,6 +784,7 @@ function O:hillClimb(setup)
 						trial[slot] = self:newSlot(it, slot)
 						if slot == 16 and it.type == "2HWEAPON" and not self:titansGrip() then trial[17] = nil end
 						self:optimizeGems(trial)
+						if self:socketMoves(trial, { slot }) then self:optimizeGems(trial) end
 						if self:totals(trial).score > self:totals(setup).score + EPS then
 							for k in pairs(setup) do setup[k] = nil end
 							for k, v in pairs(trial) do setup[k] = v end
@@ -673,7 +853,7 @@ function Optimizer.Run(c, data, tank, yield)
 	local w = ns.Data.weights[sim]
 	if not w then return nil, "no weights for " .. sim end
 
-	local o = setmetatable({ c = c, data = data, plan = plan, spec = spec, tank = tank, w = w, yield = yield, evals = 0 }, O)
+	local o = setmetatable({ c = c, data = data, plan = plan, spec = spec, tank = tank, w = w, sim = sim, yield = yield, evals = 0 }, O)
 	o:prepare()
 
 	local current = o:currentSetup()
@@ -681,6 +861,7 @@ function Optimizer.Run(c, data, tank, yield)
 	local best = o:initialSetup()
 	o:optimizeGems(best)
 	o:hillClimb(best)
+	o:polishSockets(best)
 	local after = o:totals(best)
 	o:markChanges(best, current)
 	local beforeStats, afterStats = o:gearStats(current), o:gearStats(best)
@@ -739,6 +920,9 @@ function Optimizer.Body(c, r)
 	end
 	if r.after.expCap > 0 then
 		add("C", "exp", math.floor(r.before.expSkill), math.floor(r.after.expSkill), math.floor(r.after.expCap))
+	end
+	if r.after.hasteCap > 0 then
+		add("C", "haste", math.floor(r.before.hasteRating), math.floor(r.after.hasteRating), math.floor(r.after.hasteCap))
 	end
 	if r.after.defCap > 0 then
 		add("C", "def", 400 + r.before.defSkill, 400 + r.after.defSkill, 400 + r.after.defCap)
@@ -824,6 +1008,66 @@ local function alternativesFor(items, current)
 	return out
 end
 
+-- Upgrades within reach: items of the phase's content (Data/Upgrades.lua)
+-- at most one content step (+13 item levels) above the character's
+-- average item level that score higher than the equipped item. EP as the
+-- generator's itemEP: weights x stats (feral attack power left out),
+-- weapon DPS x the slot's DPS weight, sockets x best gem, socket bonus.
+local REACH = 13
+
+local function upgradeEP(it, slot, w, gem)
+	if not it then return 0 end
+	local v = 0
+	for code, x in pairs(Rules.ExpandAll(it.stats)) do
+		if code ~= "DPS" and code ~= "FAP" then v = v + (w[code] or 0) * x end
+	end
+	local dps = it.stats.DPS or 0
+	if slot == 16 then v = v + (w.MHDPS or 0) * dps
+	elseif slot == 17 then v = v + (w.OHDPS or 0) * dps
+	elseif slot == 18 then v = v + (w.RDPS or 0) * dps
+	end
+	v = v + string.len(it.sockets or "") * gem
+	for code, x in pairs(Rules.ExpandAll(it.socketBonus or {})) do v = v + (w[code] or 0) * x end
+	return v
+end
+
+-- averageItemLevel of the equipped gear (shirt and tabard left out).
+local function averageItemLevel(c)
+	local sum, n = 0, 0
+	for _, it in pairs(Character.Equipped(c)) do
+		if it.invSlot ~= 4 and it.invSlot ~= 19 and it.ilvl > 0 then
+			sum, n = sum + it.ilvl, n + 1
+		end
+	end
+	return n > 0 and math.floor(sum / n + 0.5) or 0
+end
+
+local UPGRADE_SLOT = { [12] = 11, [14] = 13 }
+
+-- upgradesFor: up to 2 {id, ilvl} better than the item and within reach.
+local function upgradesFor(r, slot, item, reach, have)
+	local data = ns.Data.upgrades and ns.Data.upgrades[r.specKey]
+	local list = data and data[UPGRADE_SLOT[slot] or slot]
+	if not list then return nil end
+	local w = r.weights or {}
+	local trinket = slot == 13 or slot == 14
+	local current = upgradeEP(item, slot, w, data.gem)
+	local out = {}
+	for _, e in ipairs(list) do
+		local id, ilvl, ep = e[1], e[2], e[3]
+		local better
+		if trinket then
+			better = ilvl > (item and item.ilvl or 0)
+		else
+			better = ep > current * 1.03 + 1
+		end
+		if #out < 2 and ilvl <= reach and better and not have[id] then
+			out[#out + 1] = { id = id, ilvl = ilvl }
+		end
+	end
+	return out
+end
+
 -- The phase BiS list of the spec, laid out per inventory slot: the item,
 -- the list's gems and enchant, up to 5 more items from the list.
 local function planSlot(plan, slot)
@@ -869,6 +1113,10 @@ function Optimizer.View(c, r)
 		specNames = r.spec and { ru = r.spec.name, en = r.spec.nameEN } or nil }
 	local weakLevel = Rules.weakItemLevel[r.phase] or 0
 	view.bis = bisView(c, r)
+	view.averageLevel = averageItemLevel(c)
+	view.reach = view.averageLevel + REACH
+	local have = {}
+	for _, it in ipairs(c.items) do have[it.id] = true end
 	if r.after.hitCap > 0 then
 		view.caps.hit = { before = r.before.hitPct, after = r.after.hitPct, cap = r.after.hitCap,
 			rating = r.after.hitRating, talent = r.after.hitTalent }
@@ -883,23 +1131,25 @@ function Optimizer.View(c, r)
 	end
 	view.role = r.spec and r.spec.role
 	local role = view.role
-	-- Haste for healers and casters: the way to a 1 s global cooldown with
-	-- raid buffs. Informational: the optimizer values haste by its weight.
-	if role == Rules.HEALER or role == Rules.CASTER then
-		local s, per = c.stats, Rules.hastePerPct
-		local gearBefore = (r.beforeStats or {}).HASTE or 0
-		local base = math.max(0, (s.hasteSpell or 0) - gearBefore)
-		-- haste from talents and auras: the sheet total without the rating part
-		local other = 0
-		if s.spellHaste and s.spellHaste > 0 then
-			other = math.max(0, (1 + s.spellHaste / 100) / (1 + (s.hasteSpellPct or 0) / 100) - 1)
+	-- Haste breakpoints (Rules.HasteSpec): every one with its rating for
+	-- this character's talents; the first is the main one.
+	local h = Rules.HasteSpec(r.sim, r.spec and r.spec.tab)
+	if h then
+		local ranks = {}
+		for _, t in ipairs(Character.ActiveTalents(c)) do
+			if not ranks[t.tab] then ranks[t.tab] = t.ranks end
 		end
-		local mult = (1 + other) * Rules.raidHaste
-		local need = math.max(1, math.ceil((1.5 / mult - 1) * 100 * per))
-		local function gcd(rating) return math.max(1, 1.5 / ((1 + rating / per / 100) * mult)) end
-		local before, after = base + gearBefore, base + ((r.afterStats or {}).HASTE or 0)
-		view.caps.haste = { before = before, after = after, cap = need, talent = other * 100,
-			gcdBefore = gcd(before), gcdAfter = gcd(after) }
+		local gearBefore = (r.beforeStats or {}).HASTE or 0
+		local base = math.max(0, (c.stats.hasteSpell or 0) - gearBefore)
+		local ratings = Rules.HasteRatings(h, ranks)
+		local bps = {}
+		for i, bp in ipairs(h.bps) do bps[i] = { key = bp.key, rating = ratings[i] } end
+		view.caps.haste = { before = base + gearBefore, after = base + ((r.afterStats or {}).HASTE or 0),
+			cap = ratings[1], breakpoints = bps, pursued = h.pursue == true }
+	end
+	-- Armor penetration for the specs that stack it: 1400 rating is 100%.
+	if (r.weights.ARP or 0) >= 0.8 then
+		view.caps.arp = { before = r.before.arpRating or 0, after = r.after.arpRating or 0, cap = Rules.arpCap }
 	end
 	-- Feral tanks: crit immunity from Survival of the Fittest 3/3.
 	if c.class == "DRUID" and r.tank then
@@ -936,7 +1186,25 @@ function Optimizer.View(c, r)
 			offSpec = offSpec(s.item.stats, r.weights or {}),
 			weak = (s.item.quality >= 0 and s.item.quality <= 2) or (s.item.ilvl > 0 and s.item.ilvl < weakLevel),
 		}
-		if v.offSpec or v.weak then
+		-- socket colors and the bonus, for the strips under the gems
+		v.itemSockets = s.item.sockets
+		if next(s.item.socketBonus or {}) then
+			v.bonus = s.item.socketBonus
+			local matched = string.len(s.item.sockets) > 0
+			for i = 1, string.len(s.item.sockets) do
+				local g = s.gems[i]
+				if not g or g.id == 0 or not Rules.Fits(g, string.sub(s.item.sockets, i, i)) then matched = false end
+			end
+			v.bonusActive = matched
+		end
+		-- upgrades within reach for every slot; off-spec and weak items
+		-- fall back to the BiS list when the phase data has none
+		local ups = upgradesFor(r, slot, s.item, view.reach, have)
+		if ups and #ups > 0 then
+			v.alternatives, v.alternativeLevels = {}, {}
+			for i, u in ipairs(ups) do v.alternatives[i], v.alternativeLevels[i] = u.id, u.ilvl end
+			v.upgrades = true
+		elseif v.offSpec or v.weak then
 			v.alternatives = alternativesFor(r.alternatives and r.alternatives[slot], s.item.id)
 		end
 		if s.item.loc == "K" and s.changedItem then

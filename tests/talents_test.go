@@ -223,9 +223,18 @@ func TestCapsByRole(t *testing.T) {
 	if caps.RawGetString("hit") != lua.LNil || caps.RawGetString("exp") != lua.LNil {
 		t.Error("healers have no hit / expertise cap")
 	}
+	// resto druid with Gift of the Earthmother 5/5 and Celestial Focus 3/3:
+	// the guide numbers 735 (raid buffs), 856 (no 3% aura), 1063 (no buffs)
 	haste, ok := caps.RawGetString("haste").(*lua.LTable)
-	if !ok || lua.LVAsNumber(haste.RawGetString("cap")) < 500 || lua.LVAsNumber(haste.RawGetString("gcdAfter")) < 1 {
-		t.Errorf("healer haste card: %v", caps.RawGetString("haste"))
+	if !ok {
+		t.Fatal("no haste card for a healer")
+	}
+	var got []int
+	haste.RawGetString("breakpoints").(*lua.LTable).ForEach(func(_, v lua.LValue) {
+		got = append(got, int(lua.LVAsNumber(v.(*lua.LTable).RawGetString("rating"))))
+	})
+	if len(got) != 3 || got[0] != 735 || got[1] != 856 || got[2] != 1063 || haste.RawGetString("pursued") != lua.LTrue {
+		t.Errorf("resto druid haste breakpoints = %v (pursued %v)", got, haste.RawGetString("pursued"))
 	}
 	a.callFn(t, sv.RawGetString("Show"), view)
 	texts := a.allTexts(t)
@@ -259,4 +268,40 @@ func (a *addon) allTexts(t *testing.T) string {
 		t.Fatal(err)
 	}
 	return a.L.GetGlobal("ALL_TEXTS").String()
+}
+
+// Upgrades stay within one content step of the character's average item
+// level: no 226 hard-mode items for a character in 200 gear.
+func TestUpgradesWithinReach(t *testing.T) {
+	a := load(t, `FAKE.locale = "enUS"`)
+	view := feralView(t, a, false)
+	reach := lua.LVAsNumber(view.RawGetString("reach"))
+	avg := lua.LVAsNumber(view.RawGetString("averageLevel"))
+	if avg < 190 || avg > 205 || reach != avg+13 {
+		t.Fatalf("average %v, reach %v", avg, reach)
+	}
+	upgraded := 0
+	view.RawGetString("slots").(*lua.LTable).ForEach(func(slot, v lua.LValue) {
+		s := v.(*lua.LTable)
+		levels, ok := s.RawGetString("alternativeLevels").(*lua.LTable)
+		if !ok {
+			return
+		}
+		upgraded++
+		levels.ForEach(func(_, l lua.LValue) {
+			if lua.LVAsNumber(l) > reach {
+				t.Errorf("slot %v: upgrade of item level %v beyond reach %v", slot, l, reach)
+			}
+		})
+	})
+	// the 174 caster ring on a feral druid has an upgrade at least
+	ring := view.RawGetString("slots").(*lua.LTable).RawGetInt(11).(*lua.LTable)
+	if ring.RawGetString("upgrades") != lua.LTrue {
+		t.Error("no upgrade for the weak off-spec ring")
+	}
+	t.Logf("%d slots with upgrades (average %v, reach %v)", upgraded, avg, reach)
+	sv := a.ns.RawGetString("SetupView").(*lua.LTable)
+	a.callFn(t, sv.RawGetString("Show"), view)
+	a.noErrors(t)
+	a.noRussian(t)
 }

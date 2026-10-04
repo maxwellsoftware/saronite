@@ -21,6 +21,7 @@ func TestLuaOptimizerMatchesGo(t *testing.T) {
 		{"real_druid_feral.txt", "setup_druid_dps.body.txt", false, 0},
 		{"real_druid_feral.txt", "setup_druid_tank.body.txt", true, 0},
 		{"real_druid_feral.txt", "setup_druid_resto.body.txt", false, 1}, // healer
+		{"real_druid_bonus.txt", "setup_druid_bonus.body.txt", false, 0}, // socket bonuses
 		{"export_v1.txt", "setup_dk.body.txt", false, 0},
 		{"export_v1.txt", "setup_dk_tank.body.txt", true, 0}, // defense cap
 	}
@@ -159,8 +160,9 @@ func TestViewFlagsOffSpecItems(t *testing.T) {
 	if ring.RawGetString("alternatives").(*lua.LTable).Len() != 2 {
 		t.Error("the off-spec ring needs 2 alternatives")
 	}
-	if slots.RawGetInt(1).(*lua.LTable).RawGetString("alternatives") != lua.LNil {
-		t.Error("a good helmet gets no alternatives")
+	// a good helmet gets no BiS-list alternatives, only upgrades within reach
+	if head := slots.RawGetInt(1).(*lua.LTable); head.RawGetString("alternatives") != lua.LNil && head.RawGetString("upgrades") != lua.LTrue {
+		t.Error("a good helmet gets BiS-list alternatives")
 	}
 	if slots.RawGetInt(1).(*lua.LTable).RawGetString("offSpec") != lua.LNil {
 		t.Error("the feral helmet is not off-spec")

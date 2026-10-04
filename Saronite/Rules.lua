@@ -25,6 +25,69 @@ Rules.defensePerPoint = 4.918498
 -- Wrath of Air Totem 5% and Swift Retribution / Improved Moonkin Form 3%.
 Rules.hastePerPct = 32.78998
 Rules.raidHaste = 1.05 * 1.03
+-- armor penetration: 13.99 rating per 1%, 100% at 1400
+Rules.arpCap = 1400
+
+-- Haste breakpoints of 3.3.5 casters and healers (as the Go code's
+-- haste.go). Haste adds no DoT / HoT ticks in 3.3.5, so the breakpoints are
+-- GCD ones: 1.5 s down to the 1.0 s floor. The rating depends on haste
+-- talents and raid buffs:
+--   rating = (1.5 / (buffs * talents) - 1) * 100 * 32.79
+-- The first breakpoint is the main one (the guides' target), the next ones
+-- also hold without some raid buffs. Talents: tab, 0-based index in the
+-- (tier, column) rank string, % per rank or a flat % for any rank (procs).
+local WOA, AURA = 1.05, 1.03
+local ALL = WOA * AURA
+local GIFT = { tab = 3, index = 25, perRank = 2 }       -- Gift of the Earthmother
+local FOCUS = { tab = 1, index = 10, perRank = 1 }      -- Celestial Focus
+local GRACE = { tab = 1, index = 6, flat = 20 }         -- Nature's Grace
+local PURE = { tab = 1, index = 22, perRank = 3 }       -- Judgements of the Pure
+local ENLIGHTEN = { tab = 1, index = 16, perRank = 2 }  -- Enlightenment
+local BORROWED = { tab = 1, index = 26, perRank = 5 }   -- Borrowed Time
+
+function Rules.HasteSpec(sim, tab)
+	if sim == "restoration_druid" then
+		return { talents = { GIFT, FOCUS }, procs = {}, pursue = true, post = 0.5, bps = {
+			{ key = "GCD", buffs = ALL }, { key = "GCD_NO_AURA", buffs = WOA }, { key = "GCD_NO_BUFFS", buffs = 1 } } }
+	elseif sim == "balance_druid" then
+		return { talents = { FOCUS }, procs = { GRACE }, pursue = true, post = 0.5, bps = {
+			{ key = "WRATH_NG", buffs = ALL, procs = true }, { key = "WRATH_NG_NO_WOA", buffs = AURA, procs = true },
+			{ key = "GCD", buffs = ALL } } }
+	elseif sim == "holy_paladin" then
+		return { talents = { PURE }, procs = {}, bps = {
+			{ key = "GCD", buffs = ALL }, { key = "GCD_NO_AURA", buffs = WOA }, { key = "GCD_NO_BUFFS", buffs = 1 } } }
+	elseif sim == "healing_priest" and tab == 1 then
+		return { talents = { ENLIGHTEN }, procs = { BORROWED }, pursue = true, post = 1, bps = {
+			{ key = "GCD_BT", buffs = ALL, procs = true }, { key = "GCD_BT_NO_AURA", buffs = WOA, procs = true },
+			{ key = "GCD_BT_NO_BUFFS", buffs = 1, procs = true }, { key = "GCD", buffs = ALL } } }
+	elseif sim == "healing_priest" or sim == "restoration_shaman" or sim == "shadow_priest" then
+		return { talents = {}, procs = {}, bps = { { key = "GCD", buffs = ALL } } }
+	end
+	return nil
+end
+
+local function talentHaste(ranks, t)
+	local r = ranks[t.tab] or ""
+	local rank = t.index < string.len(r) and (tonumber(string.sub(r, t.index + 1, t.index + 1)) or 0) or 0
+	if rank == 0 then return 1 end
+	if t.flat then return 1 + t.flat / 100 end
+	return 1 + t.perRank * rank / 100
+end
+
+-- HasteRatings: the rating each breakpoint needs; ranks[tab] = rank string.
+function Rules.HasteRatings(h, ranks)
+	local out = {}
+	for i, bp in ipairs(h.bps) do
+		local mult = bp.buffs
+		for _, t in ipairs(h.talents) do mult = mult * talentHaste(ranks, t) end
+		if bp.procs then
+			for _, t in ipairs(h.procs) do mult = mult * talentHaste(ranks, t) end
+		end
+		-- rounded up: the GCD must reach 1.0 s, not 1.0001
+		out[i] = math.max(0, math.ceil((1.5 / mult - 1) * 100 * Rules.hastePerPct - 1e-6))
+	end
+	return out
+end
 
 local function spec(name, role, maybeTank, nameEN)
 	return { name = name, nameEN = nameEN or name, role = role, maybeTank = maybeTank or false }

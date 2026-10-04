@@ -34,6 +34,18 @@ local PANEL_WIDTH = WIDTH - 2 * COLUMN - 2 * MARGIN - 48
 local STAT_ROWS = 7
 
 local QUESTION = "Interface\\Icons\\INV_Misc_QuestionMark"
+local WHITE = "Interface\\Buttons\\WHITE8X8"
+local SOCKET_COLORS = {
+	R = { 0.92, 0.26, 0.26 }, Y = { 0.98, 0.82, 0.22 }, B = { 0.32, 0.52, 1.00 },
+	M = { 0.80, 0.80, 0.84 }, P = { 0.80, 0.80, 0.84 },
+}
+
+local function sortedCodes(t)
+	local out = {}
+	for k in pairs(t) do out[#out + 1] = k end
+	table.sort(out)
+	return out
+end
 
 local window, rows, tabs, roleButtons
 local center, message, capCards, priority, statHeader, statRows, footer, bisCard
@@ -140,7 +152,16 @@ local function newRow(parent, alignRight)
 	row.altLabel:SetText(L.ALTERNATIVE)
 
 	row.gems = {}
-	for i = 1, 4 do row.gems[i] = Style.Icon(row, SMALL) end
+	for i = 1, 4 do
+		local g = Style.Icon(row, SMALL)
+		-- socket color under the gem: a matching gem counts for the bonus
+		g.socket = g:CreateTexture(nil, "OVERLAY")
+		g.socket:SetTexture(WHITE)
+		g.socket:SetHeight(2)
+		g.socket:SetPoint("TOPLEFT", g, "BOTTOMLEFT", 1, -1)
+		g.socket:SetPoint("TOPRIGHT", g, "BOTTOMRIGHT", -1, -1)
+		row.gems[i] = g
+	end
 	row.ench = Style.Icon(row, SMALL)
 
 	local side = alignRight and "RIGHT" or "LEFT"
@@ -182,6 +203,18 @@ local function newRow(parent, alignRight)
 		elseif s.weak then
 			lines[#lines + 1] = { L.TIP_WEAK, warn[1], warn[2], warn[3] }
 		end
+		if s.bonus then
+			local parts = {}
+			for _, code in ipairs(sortedCodes(s.bonus)) do
+				parts[#parts + 1] = "+" .. s.bonus[code] .. " " .. statName(code)
+			end
+			local text = string.format(L.TIP_SOCKET_BONUS, table.concat(parts, ", "))
+			if s.bonusActive then
+				lines[#lines + 1] = { text, good[1], good[2], good[3] }
+			else
+				lines[#lines + 1] = { text .. " " .. L.TIP_BONUS_OFF, dim[1], dim[2], dim[3] }
+			end
+		end
 		return "item:" .. s.item, lines
 	end)
 	for i, alt in ipairs(row.alts) do
@@ -189,6 +222,10 @@ local function newRow(parent, alignRight)
 			local s = row.slot
 			local id = s and s.alternatives and s.alternatives[i]
 			if not id then return nil end
+			if s.upgrades and tab == "current" then
+				local ilvl = s.alternativeLevels and s.alternativeLevels[i] or 0
+				return "item:" .. id, { { string.format(L.TIP_UPGRADE, ilvl, current.averageLevel or 0), accent[1], accent[2], accent[3] } }
+			end
 			return "item:" .. id, { { string.format(L.TIP_ALT, current.phase or ""), warn[1], warn[2], warn[3] } }
 		end)
 	end
@@ -264,7 +301,9 @@ local function fillRow(row, slot)
 		end
 	end
 	if #alts > 0 then
-		row.altLabel:SetTextColor(unpack(tab == "bis" and dim or warn))
+		local upgrades = slot.upgrades and tab == "current"
+		row.altLabel:SetText(upgrades and L.UPGRADES or L.ALTERNATIVE)
+		row.altLabel:SetTextColor(unpack((tab == "bis" and dim) or (upgrades and accent) or warn))
 		row.altLabel:Show()
 	else
 		row.altLabel:Hide()
@@ -283,6 +322,13 @@ local function fillRow(row, slot)
 			else
 				g.texture:SetTexture(nil)
 				g:SetBorder(unpack(warn))
+			end
+			local c = SOCKET_COLORS[string.sub(slot.sockets or "", i, i)]
+			if c and tab == "current" then
+				g.socket:SetVertexColor(c[1], c[2], c[3], 1)
+				g.socket:Show()
+			else
+				g.socket:Hide()
 			end
 			g:Show()
 			last = g
@@ -355,6 +401,21 @@ local function newCapCard()
 	card.detail:SetWidth(PANEL_WIDTH - 20)
 	card.detail:SetHeight(12)
 	card.detail:SetTextColor(unpack(dim))
+	-- haste: breakpoint marks on the bar and one line per breakpoint
+	card.ticks = {}
+	for i = 1, 4 do
+		local t = card:CreateTexture(nil, "OVERLAY")
+		t:SetTexture(WHITE)
+		t:SetWidth(2)
+		t:SetHeight(11)
+		t:Hide()
+		card.ticks[i] = t
+	end
+	card.lines = Style.Text(card, 11)
+	card.lines:SetPoint("TOPLEFT", card, "TOPLEFT", 10, -51)
+	card.lines:SetWidth(PANEL_WIDTH - 20)
+	card.lines:SetJustifyV("TOP")
+	card.lines:SetSpacing(2)
 	card:EnableMouse(true)
 	card:SetScript("OnEnter", function(self)
 		if not self.help then return end
@@ -367,14 +428,79 @@ local function newCapCard()
 	return card
 end
 
--- fillCap: kind "hit" (percent), "exp" or "def" (skill).
+-- fillHaste: the haste scale with every breakpoint of the spec. Returns
+-- the card height.
+local function fillHaste(card, cap)
+	local bps = cap.breakpoints or {}
+	local ok = cap.after >= cap.cap
+	-- a breakpoint the optimizer does not chase is a guide, not a warning
+	local color = ok and good or ((cap.pursued and warn) or accent)
+	card.title:SetText(colored(Style.StatColor("HASTE"), L.CAP_HASTE))
+	local value = string.format("%d", cap.after)
+	if cap.after ~= cap.before then value = colored(dim, string.format("%d » ", cap.before)) .. value end
+	card.value:SetText(value .. colored(dim, " / " .. cap.cap))
+	card.value:SetTextColor(unpack(color))
+
+	local top = cap.after
+	for _, bp in ipairs(bps) do top = math.max(top, bp.rating) end
+	local span = math.max(1, top * 1.04)
+	card.bar:SetValues(cap.before / span, cap.after / span, color[1], color[2], color[3])
+	local width = PANEL_WIDTH - 20
+	local lines, nextShown = {}, false
+	for i, tick in ipairs(card.ticks) do
+		local bp = bps[i]
+		if bp then
+			local reached = cap.after >= bp.rating
+			local c = reached and good or (i == 1 and color or dim)
+			tick:ClearAllPoints()
+			tick:SetPoint("CENTER", card.bar, "LEFT", math.floor(bp.rating / span * width), 0)
+			tick:SetVertexColor(c[1], c[2], c[3], 1)
+			tick:Show()
+			local label = L["BP_" .. bp.key] or bp.key
+			if i == 1 then label = label .. "  " .. L.BP_MAIN end
+			local lineColor = reached and good or ((not nextShown) and Style.color.text or dim)
+			if not reached then nextShown = true end
+			lines[#lines + 1] = colored(lineColor, string.format("%4d", bp.rating)) .. "  " .. colored(reached and good or dim, label)
+		else
+			tick:Hide()
+		end
+	end
+	card.lines:SetText(table.concat(lines, "\n"))
+	card.lines:Show()
+
+	local state
+	if ok then
+		local nextBp
+		for _, bp in ipairs(bps) do
+			if cap.after < bp.rating then nextBp = bp break end
+		end
+		state = colored(good, L.HASTE_MAIN_DONE)
+		if nextBp then state = state .. colored(dim, "  ·  " .. string.format(L.HASTE_NEXT, nextBp.rating - cap.after)) end
+	else
+		state = colored(color, string.format(L.HASTE_TO_MAIN, cap.cap - cap.after))
+		if not cap.pursued then state = state .. colored(dim, "  ·  " .. L.HASTE_GUIDE) end
+	end
+	card.detail:SetText(state)
+	card.helpTitle = L.CAP_HASTE
+	card.help = cap.pursued and L.HASTE_HELP or (L.HASTE_HELP .. "\n\n" .. L.HASTE_HELP_GUIDE)
+	local height = 56 + #bps * 13
+	card:SetHeight(height)
+	return height
+end
+
+-- fillCap: kind "hit" (percent), "exp", "def" (skill), "crit", "arp".
+-- Returns the card height.
 local function fillCap(card, kind, cap)
+	for _, t in ipairs(card.ticks) do t:Hide() end
+	card.lines:Hide()
+	card:SetHeight(50)
+	if kind == "haste" then return fillHaste(card, cap) end
 	local percent = kind == "hit"
 	local fmt = percent and "%.2f%%" or "%d"
 	local ok = cap.after + 0.005 >= cap.cap
-	-- haste to a 1 s GCD is a target, not a must: no warning color
-	local color = ok and good or (kind == "haste" and accent or warn)
-	local title = ({ hit = L.CAP_HIT, exp = L.CAP_EXP, def = L.CAP_DEF, haste = L.CAP_HASTE, crit = L.CAP_CRIT })[kind]
+	-- the armor penetration cap is a ceiling, not a must: no warning color
+	local color = ok and good or (kind == "arp" and accent or warn)
+	local title = ({ hit = L.CAP_HIT, exp = L.CAP_EXP, def = L.CAP_DEF, crit = L.CAP_CRIT, arp = L.CAP_ARP })[kind]
 	card.title:SetText(colored(Style.StatColor(string.upper(kind)), title))
 	local value = string.format(fmt, cap.after)
 	if math.abs(cap.after - cap.before) >= 0.005 then
@@ -393,14 +519,14 @@ local function fillCap(card, kind, cap)
 		detail = string.format(L.EXP_FROM, cap.rating, cap.talent or 0)
 	elseif kind == "def" and cap.rating then
 		detail = string.format(L.DEF_FROM, cap.rating)
-	elseif kind == "haste" then
-		detail = string.format(L.HASTE_FROM, cap.gcdAfter or 1.5, cap.talent or 0)
+	elseif kind == "arp" then
+		detail = string.format(L.ARP_FROM, cap.after / 13.99)
 	elseif kind == "crit" then
 		detail = string.format(L.CRIT_FROM, (GetSpellInfo(cap.spell or 0)) or "", cap.after, cap.cap)
 	end
 	local state
-	if kind == "haste" then
-		state = colored(color, ok and L.HASTE_DONE or L.HASTE_SHORT)
+	if kind == "arp" then
+		state = colored(color, ok and L.ARP_DONE or L.ARP_SHORT)
 	elseif kind == "crit" then
 		state = colored(color, ok and L.CRIT_DONE or L.CRIT_SHORT)
 	else
@@ -408,7 +534,8 @@ local function fillCap(card, kind, cap)
 	end
 	card.detail:SetText(detail and (state .. colored(dim, "  ·  " .. detail)) or state)
 	card.helpTitle = title
-	card.help = ({ hit = L.HIT_HELP, exp = L.EXP_HELP, def = L.DEF_HELP, haste = L.HASTE_HELP, crit = L.CRIT_HELP })[kind]
+	card.help = ({ hit = L.HIT_HELP, exp = L.EXP_HELP, def = L.DEF_HELP, crit = L.CRIT_HELP, arp = L.ARP_HELP })[kind]
+	return 50
 end
 
 local function delta(before, after)
@@ -506,11 +633,10 @@ local function renderCurrent()
 
 	stackY = 0
 	local caps = 0
-	for _, kind in ipairs({ "hit", "exp", "def", "crit", "haste" }) do
+	for _, kind in ipairs({ "hit", "exp", "def", "crit", "arp", "haste" }) do
 		local cap = current.caps[kind]
 		if cap then
-			fillCap(capCards[kind], kind, cap)
-			stack(capCards[kind], 50, 8)
+			stack(capCards[kind], fillCap(capCards[kind], kind, cap), 8)
 			caps = caps + 1
 		else
 			capCards[kind]:Hide()
@@ -518,8 +644,8 @@ local function renderCurrent()
 	end
 	if caps > 0 then stackY = stackY + 4 end
 	fillPriority(current.stats, current.role == ns.Rules.HEALER)
-	-- three cap cards (plate tanks) leave room for fewer stat rows
-	fillStats(current.stats, caps >= 3 and 5 or STAT_ROWS)
+	-- tall cap cards (plate tanks, haste scales) leave room for fewer stat rows
+	fillStats(current.stats, stackY > 200 and 5 or STAT_ROWS)
 
 	local blocks = {}
 	local items, enchants, gems = 0, 0, 0
@@ -688,7 +814,7 @@ local function create()
 	center:SetHeight(10)
 	center:SetPoint("TOP", 0, -TOP)
 
-	capCards = { hit = newCapCard(), exp = newCapCard(), def = newCapCard(), crit = newCapCard(), haste = newCapCard() }
+	capCards = { hit = newCapCard(), exp = newCapCard(), def = newCapCard(), crit = newCapCard(), arp = newCapCard(), haste = newCapCard() }
 
 	priority = Style.Text(center, 12)
 	center.priority = priority
