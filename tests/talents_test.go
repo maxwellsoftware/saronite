@@ -364,3 +364,45 @@ func TestWindowsShowVersion(t *testing.T) {
 		t.Errorf("version label = %q, want %q", got, want)
 	}
 }
+
+// Items to take out of the bags get the EQUIP badge, the "Equip from bags ·
+// instead of" line and a place in the list of what to equip.
+func TestBagItemsAreMarkedToEquip(t *testing.T) {
+	a := load(t, `FAKE.locale = "enUS"`)
+	raw, _ := os.ReadFile("testdata/real_druid_feral.txt")
+	character := a.ns.RawGetString("Character").(*lua.LTable)
+	optimizer := a.ns.RawGetString("Optimizer").(*lua.LTable)
+	data := a.ns.RawGetString("Data").(*lua.LTable).RawGetString("phases").(*lua.LTable).RawGetString("T7")
+	ch := a.callFn(t, character.RawGetString("FromExportString"), lua.LString(raw))[0]
+	ch.(*lua.LTable).RawSetString("activeGroup", lua.LNumber(1)) // resto: the healing gear is in the bags
+	res := a.callFn(t, optimizer.RawGetString("Run"), ch, data, lua.LFalse)[0]
+	view := a.callFn(t, optimizer.RawGetString("View"), ch, res)[0].(*lua.LTable)
+	a.callFn(t, a.ns.RawGetString("SetupView").(*lua.LTable).RawGetString("Show"), view)
+	a.noErrors(t)
+
+	err := a.L.DoString(`
+		BADGES, BAG_ROWS = 0, 0
+		for _, f in ipairs(FRAMES) do
+			local slot = rawget(f, "slot")
+			local badge = rawget(f, "badge")
+			if badge and slot and slot.changedItem and (slot.loc == "B" or slot.loc == "K") then
+				BAG_ROWS = BAG_ROWS + 1
+				if badge:IsShown() then BADGES = BADGES + 1 end
+			end
+		end
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows, badges := lua.LVAsNumber(a.L.GetGlobal("BAG_ROWS")), lua.LVAsNumber(a.L.GetGlobal("BADGES"))
+	if rows == 0 || badges != rows {
+		t.Errorf("%v of %v bag items have the EQUIP badge", badges, rows)
+	}
+	texts := a.allTexts(t)
+	for _, want := range []string{"Equip:", "Equip from bags", "instead of"} {
+		if !strings.Contains(texts, want) {
+			t.Errorf("no %q in the window", want)
+		}
+	}
+	a.noRussian(t)
+}

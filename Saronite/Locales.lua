@@ -74,6 +74,11 @@ local EN = {
 		[15] = "Back", [16] = "Main hand", [17] = "Off hand", [18] = "Ranged / relic",
 	},
 	TIP_EQUIP = "Equip this item",
+	EQUIP_BADGE = "EQUIP",
+	FROM_BAG = "Equip from bags",
+	FROM_BANK = "Take from the bank",
+	INSTEAD_OF = "instead of %s",
+	EQUIP_LIST = "Equip:",
 	TIP_BIS = "BiS of phase %s for this slot",
 	TIP_BUCKLE = "Belt buckle socket (Eternal Belt Buckle)",
 	TIP_REPLACE = "Replaces: %s",
@@ -217,6 +222,11 @@ do
 		[14] = "Аксессуар 2", [15] = "Спина", [16] = "Правая рука", [17] = "Левая рука", [18] = "Дальний бой / реликвия",
 	}
 	RU.TIP_EQUIP = "Надень эту вещь"
+	RU.EQUIP_BADGE = "НАДЕТЬ"
+	RU.FROM_BAG = "Надеть из сумки"
+	RU.FROM_BANK = "Взять из банка"
+	RU.INSTEAD_OF = "вместо %s"
+	RU.EQUIP_LIST = "Надень:"
 	RU.TIP_BIS = "BiS фазы %s для этого слота"
 	RU.TIP_BUCKLE = "Гнездо пряжки (Вечная пряжка)"
 	RU.TIP_REPLACE = "Вместо: %s"

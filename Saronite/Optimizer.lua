@@ -1300,6 +1300,7 @@ function Optimizer.View(c, r)
 		end
 		-- what is on the item now, to show what gets replaced
 		local cur = s.current
+		if cur and s.changedItem then v.oldItem = cur.item.id end
 		if cur and not s.changedItem then
 			v.oldGems = {}
 			for i = 1, 4 do v.oldGems[i] = cur.item.gems[i] or 0 end

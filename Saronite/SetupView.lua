@@ -148,6 +148,17 @@ local function newRow(parent, alignRight)
 	row.detail:SetTextColor(unpack(dim))
 	row.alts = {}
 	for i = 1, ALTS do row.alts[i] = Style.Icon(row, ALT) end
+	-- "EQUIP" badge over the icon of an item that waits in the bags / bank
+	row.badge = CreateFrame("Frame", nil, row)
+	row.badge:SetHeight(13)
+	row.badge:SetWidth(54)
+	Style.Backdrop(row.badge, { accent[1] * 0.45, accent[2] * 0.45, accent[3] * 0.45, 0.95 })
+	row.badge:SetBackdropBorderColor(accent[1], accent[2], accent[3], 1)
+	row.badge:SetFrameLevel((row:GetFrameLevel() or 1) + 5)
+	row.badge.text = Style.Text(row.badge, 9)
+	row.badge.text:SetPoint("CENTER", row.badge, "CENTER", 0, 0)
+	row.badge.text:SetText(L.EQUIP_BADGE)
+	row.badge:Hide()
 	row.altLabel = Style.Text(row, 10)
 	row.altLabel:SetText(L.ALTERNATIVE)
 
@@ -175,6 +186,7 @@ local function newRow(parent, alignRight)
 	end
 	row.altLabel:SetPoint("BOTTOM" .. other, row.alts[1], "TOP" .. other, 0, 2)
 	row.icon:SetPoint(side, row, side, OUTER * dir, 0)
+	row.badge:SetPoint("CENTER", row.icon, "TOP", 0, 0)
 	row.name:SetPoint("TOP" .. side, row.icon, "TOP" .. other, 8 * dir, -2)
 	row.name:SetJustifyH(side)
 	row.gems[1]:SetPoint("BOTTOM" .. side, row.icon, "BOTTOM" .. other, 8 * dir, 2)
@@ -195,7 +207,12 @@ local function newRow(parent, alignRight)
 		end
 		local where = locationText(s)
 		if where then lines[#lines + 1] = { where, warn[1], warn[2], warn[3] } end
-		if s.changedItem then lines[#lines + 1] = { L.TIP_EQUIP, accent[1], accent[2], accent[3] } end
+		if s.changedItem then
+			lines[#lines + 1] = { L.TIP_EQUIP, accent[1], accent[2], accent[3] }
+			if s.oldItem then
+				lines[#lines + 1] = { string.format(L.TIP_REPLACE, itemInfo(s.oldItem) or ("#" .. s.oldItem)), warn[1], warn[2], warn[3] }
+			end
+		end
 		if s.offSpec then
 			local names = {}
 			for _, code in ipairs(s.offSpec) do names[#names + 1] = statName(code) end
@@ -355,9 +372,28 @@ local function fillRow(row, slot)
 		row.ench:Hide()
 	end
 
+	-- an item to take out of the bags / bank: badge, pulsing border and the
+	-- line "Equip from bags · instead of <the equipped item>" first
+	local equip = tab == "current" and slot.changedItem and (slot.loc == "B" or slot.loc == "K")
 	local parts = {}
+	if equip then
+		local text = slot.loc == "K" and L.FROM_BANK or L.FROM_BAG
+		local old = slot.oldItem and itemInfo(slot.oldItem)
+		parts[#parts + 1] = colored(accent, text)
+		if old then parts[#parts + 1] = colored(dim, string.format(L.INSTEAD_OF, old)) end
+		row.badge.text:SetText(L.EQUIP_BADGE)
+		row.badge:Show()
+		row:SetScript("OnUpdate", function()
+			local t = GetTime and GetTime() or 0
+			local a = 0.55 + 0.45 * math.abs(math.sin(t * 2.5))
+			row.icon:SetBackdropBorderColor(accent[1], accent[2], accent[3], a)
+		end)
+	else
+		row.badge:Hide()
+		row:SetScript("OnUpdate", nil)
+	end
 	if enchName then parts[#parts + 1] = colored(slot.changedEnchant and accent or dim, enchName) end
-	local where = tab == "current" and locationText(slot)
+	local where = tab == "current" and not equip and locationText(slot)
 	if where then parts[#parts + 1] = colored(warn, where) end
 	row.detail:SetText(table.concat(parts, "  "))
 	-- one anchor only; the width is what is left of the row
@@ -664,6 +700,21 @@ local function renderCurrent()
 	if gems > 0 then parts[#parts + 1] = count(L.CHANGES_GEMS, gems) end
 	blocks[#blocks + 1] = #parts > 0 and (colored(dim, L.CHANGES) .. " " .. table.concat(parts, colored(dim, "  ·  ")))
 		or colored(good, L.NO_CHANGES)
+
+	-- what to take out of the bags / bank, slot by slot
+	local equip = {}
+	for _, slot in ipairs(ORDER) do
+		local s = current.slots[slot]
+		if s and s.changedItem and (s.loc == "B" or s.loc == "K") then
+			local name = itemInfo(s.item) or ("#" .. s.item)
+			local where = s.loc == "K" and L.LOC_BANK or L.LOC_BAG
+			equip[#equip + 1] = colored(dim, (L.SLOTS[slot] or tostring(slot)) .. ":") .. " " .. colored(accent, name)
+				.. colored(dim, " (" .. where .. ")")
+		end
+	end
+	if #equip > 0 then
+		blocks[#blocks + 1] = colored(accent, L.EQUIP_LIST) .. "\n" .. table.concat(equip, "\n")
+	end
 
 	local off = {}
 	for _, slot in ipairs(ORDER) do
