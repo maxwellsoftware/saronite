@@ -126,6 +126,7 @@ local EN = {
 	DEF_FROM = "gear %d rating",
 	DEF_HELP = "540 defense makes a plate tank immune to critical hits from raid bosses. Druids get the immunity from Survival of the Fittest and do not need defense.",
 	PRIORITY = "Stat priority",
+	PRIO_CAP = "%s to %s",
 	HEALER_CAPS = "Healers have no hit or expertise cap: all budget goes into the stats below.",
 	BUILDS = "Recommended builds",
 	BUILDS_SOURCE = "Talents and glyphs: wowsims presets for the spec.",
@@ -274,6 +275,7 @@ do
 	RU.DEF_FROM = "экипировка %d рейтинга"
 	RU.DEF_HELP = "540 защиты делают танка в латах неуязвимым к критическим ударам рейд-боссов. Друиду неуязвимость даёт «Естественный отбор», защита ему не нужна."
 	RU.PRIORITY = "Приоритет характеристик"
+	RU.PRIO_CAP = "%s до %s"
 	RU.HEALER_CAPS = "У лекарей нет капа меткости и мастерства: весь бюджет идёт в характеристики ниже."
 	RU.BUILDS = "Рекомендуемые сборки"
 	RU.BUILDS_SOURCE = "Таланты и символы: пресеты wowsims для спека."

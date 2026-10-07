@@ -202,6 +202,10 @@ func TestCapsByRole(t *testing.T) {
 	sv := a.ns.RawGetString("SetupView").(*lua.LTable)
 	a.callFn(t, sv.RawGetString("Show"), view)
 	a.noErrors(t)
+	// the priority starts with the caps, defense first
+	if texts := a.allTexts(t); !strings.Contains(texts, "Защита до 540") && !strings.Contains(texts, "Defense to 540") {
+		t.Error("the plate tank's priority does not start with defense to 540")
+	}
 
 	// feral tank: crit immunity from talents, no defense block
 	tank := feralView(t, a, true)

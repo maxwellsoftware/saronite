@@ -638,20 +638,38 @@ local function fillStats(all, limit)
 end
 
 -- Stat priority: the spec's stats by weight, in their colors.
-local function fillPriority(stats, healer)
-	local names = {}
-	for i, st in ipairs(stats or {}) do
-		if i > 6 then break end
-		names[#names + 1] = colored(Style.StatColor(st.code), statName(st.code))
+-- Stat priority: the spec's caps first, in the order guides close them
+-- ("Defense to 540", "Hit to 8%"), then the stats by weight in their colors.
+local function fillPriority(stats, healer, caps)
+	local capsLine = {}
+	local capped = {}
+	local function cap(label, code, value)
+		capsLine[#capsLine + 1] = colored(Style.StatColor(code), string.format(L.PRIO_CAP, label, value))
+		capped[code] = true
 	end
-	if #names == 0 then
+	caps = caps or {}
+	if caps.def then cap(L.CAP_DEF, "DEF", string.format("%d", caps.def.cap)) end
+	if caps.hit then cap(L.CAP_HIT, "HIT", string.format("%g%%", caps.hit.cap)) end
+	if caps.exp then cap(L.CAP_EXP, "EXP", string.format("%d", caps.exp.cap)) end
+	if caps.haste and caps.haste.pursued then cap(L.CAP_HASTE, "HASTE", string.format("%d", caps.haste.cap)) end
+	local names = {}
+	for _, st in ipairs(stats or {}) do
+		if #names >= 6 then break end
+		if not capped[st.code] then
+			names[#names + 1] = colored(Style.StatColor(st.code), statName(st.code))
+		end
+	end
+	if #names == 0 and #capsLine == 0 then
 		priority:Hide()
 		return
 	end
-	local text = colored(dim, L.PRIORITY) .. "\n" .. table.concat(names, colored(dim, "  »  "))
-	if healer then text = colored(accent, L.HEALER_CAPS) .. "\n" .. text end
-	priority:SetText(text)
-	stack(priority, healer and 50 or 34, 12)
+	local sep = colored(dim, "  »  ")
+	local lines = { colored(dim, L.PRIORITY) }
+	if healer then table.insert(lines, 1, colored(accent, L.HEALER_CAPS)) end
+	if #capsLine > 0 then lines[#lines + 1] = table.concat(capsLine, sep) end
+	if #names > 0 then lines[#lines + 1] = table.concat(names, sep) end
+	priority:SetText(table.concat(lines, "\n"))
+	stack(priority, #lines * 16 + 2, 12)
 end
 
 local function hideCenter()
@@ -679,7 +697,7 @@ local function renderCurrent()
 		end
 	end
 	if caps > 0 then stackY = stackY + 4 end
-	fillPriority(current.stats, current.role == ns.Rules.HEALER)
+	fillPriority(current.stats, current.role == ns.Rules.HEALER, current.caps)
 	-- tall cap cards (plate tanks, haste scales) leave room for fewer stat rows
 	fillStats(current.stats, stackY > 200 and 5 or STAT_ROWS)
 

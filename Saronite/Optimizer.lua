@@ -133,6 +133,20 @@ function O:gemPool()
 	return pool
 end
 
+-- isDragonsEye: the jewelcrafter's epic gems, unique-equipped (3).
+local function isDragonsEye(g)
+	return g.profession == "JEWELCRAFTING" and g.quality == 4
+end
+
+-- gemRelevant: the gem has a stat the spec weighs, or a capped one.
+function O:gemRelevant(g)
+	if g.color == "prismatic" then return true end
+	for code in pairs(Rules.ExpandAll(g.stats)) do
+		if (self.w[code] or 0) > 0 or code == "HIT" or code == "EXP" or code == "DEF" then return true end
+	end
+	return false
+end
+
 function O:prepare()
 	local c, data = self.c, self.data
 	self.gems, self.metas, self.gemUnit = {}, {}, 0
@@ -142,9 +156,13 @@ function O:prepare()
 			if g.color == "meta" then
 				if next(g.stats) then self.metas[#self.metas + 1] = g end
 			else
-				self.gems[#self.gems + 1] = g
-				if not Rules.IsPureCapGem(g) then
-					self.gemUnit = math.max(self.gemUnit, self:statValue(Rules.ExpandAll(g.stats)) / GEM_POINTS)
+				-- gems with nothing for the spec are left out (fewer to try)
+				if self:gemRelevant(g) then
+					self.gems[#self.gems + 1] = g
+					-- Dragon's Eyes (3 per character) do not set the value of a gem
+					if not Rules.IsPureCapGem(g) and not isDragonsEye(g) then
+						self.gemUnit = math.max(self.gemUnit, self:statValue(Rules.ExpandAll(g.stats)) / GEM_POINTS)
+					end
 				end
 			end
 		end
@@ -482,6 +500,15 @@ function O:totals(setup)
 	end
 	t.arpRating = self.baseArp + (stats.ARP or 0)
 
+	-- at most three jewelcrafter's Dragon's Eyes
+	local eyes = 0
+	for _, s in pairs(setup) do
+		for _, g in ipairs(s.gems) do
+			if isDragonsEye(g) then eyes = eyes + 1 end
+		end
+	end
+	if eyes > 3 then v = v - 1e6 * (eyes - 3) end
+
 	local ok, meta = self:metaActive(setup)
 	if ok then
 		v = v + self:statValue(meta.stats) + META_GEM_POINTS * self.gemUnit * GEM_POINTS
@@ -573,11 +600,18 @@ function O:enchantAllowed(rec, it, slot)
 	local c = self.c
 	if rec.profession and not c.professions[rec.profession] then return false end
 	local name = rec.name or ""
+	if rec.classes then
+		local allowed = false
+		for _, cl in ipairs(rec.classes) do
+			if cl == c.class then allowed = true end
+		end
+		if not allowed then return false end
+	end
 	if string.sub(name, 1, 7) == "Rune of" and c.class ~= "DEATHKNIGHT" then return false end
-	local shield = string.find(name, "Shield", 1, true) ~= nil or string.find(name, "Plating", 1, true) ~= nil
+	local shield = rec.shield or string.find(name, "Shield", 1, true) ~= nil or string.find(name, "Plating", 1, true) ~= nil
 	if slot == 17 and shield ~= (it.type == "SHIELD") then return false end
 	if slot == 16 and shield then return false end
-	if (Rules.TwoHandOnly(rec) or string.find(name, "2H Weapon", 1, true)) and it.type ~= "2HWEAPON" then return false end
+	if (rec.twoHand or Rules.TwoHandOnly(rec) or string.find(name, "2H Weapon", 1, true)) and it.type ~= "2HWEAPON" then return false end
 	return true
 end
 
@@ -780,6 +814,40 @@ function O:socketMoves(setup, slots)
 	return changed
 end
 
+-- gemPairs tries every pair of gems in every pair of the item's sockets
+-- (as the Go code).
+function O:gemPairs(setup, slot)
+	local s = setup[slot]
+	local idx = {}
+	for i = 1, #s.gems do
+		if string.sub(s.sockets, i, i) ~= "M" then idx[#idx + 1] = i end
+	end
+	local changed = false
+	for a = 1, #idx do
+		for b = a + 1, #idx do
+			local i, j = idx[a], idx[b]
+			local b1, b2 = s.gems[i], s.gems[j]
+			local bestScore = self:totals(setup).score
+			for _, g1 in ipairs(self.gems) do
+				if not (g1.color == "prismatic" and self:uniqueUsed(setup, g1.id, slot, i)) then
+					for _, g2 in ipairs(self.gems) do
+						if not (g2.color == "prismatic" and (g2.id == g1.id or self:uniqueUsed(setup, g2.id, slot, j))) then
+							s.gems[i], s.gems[j] = g1, g2
+							local sc = self:totals(setup).score
+							if sc > bestScore + EPS then
+								b1, b2, bestScore = g1, g2, sc
+								changed = true
+							end
+						end
+					end
+				end
+			end
+			s.gems[i], s.gems[j] = b1, b2
+		end
+	end
+	return changed
+end
+
 -- polishSockets: joint moves on every item and gem swaps between items,
 -- then single sockets again, until nothing improves.
 function O:polishSockets(setup)
@@ -919,6 +987,12 @@ function Optimizer.Run(c, data, tank, yield)
 	o:optimizeGems(best)
 	o:hillClimb(best)
 	o:polishSockets(best)
+	-- last: gem pairs per item (expensive, once), then polish again
+	local paired = false
+	for _, slot in ipairs(sortedKeys(best)) do
+		if o:gemPairs(best, slot) then paired = true end
+	end
+	if paired then o:polishSockets(best) end
 	local after = o:totals(best)
 	o:markChanges(best, current)
 	-- after markChanges: it may swap rings / trinkets to their current slots
