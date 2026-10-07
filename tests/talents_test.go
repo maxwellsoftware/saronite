@@ -406,3 +406,30 @@ func TestBagItemsAreMarkedToEquip(t *testing.T) {
 	}
 	a.noRussian(t)
 }
+
+// Enchants the phase data does not know: their stats come from the item
+// tooltip (the line the tooltip has with the enchant and not without).
+func TestUnknownEnchantStatsFromTooltip(t *testing.T) {
+	a := load(t, `
+		FAKE.enchantLines = { [9999] = "+22 Defense Rating" }
+		FAKE.equipped[5] = MakeLink(40550, 9999)
+	`)
+	err := a.L.DoString(`
+		local snap = NS.Export.Snapshot()
+		local c = NS.Character.FromSnapshot(snap)
+		local chest = NS.Character.Equipped(c)[5]
+		CHEST_DEF = chest.enchantStats and chest.enchantStats.DEF
+		local plain = NS.Character.Equipped(c)[1]
+		HEAD_STATS = plain.enchantStats
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := lua.LVAsNumber(a.L.GetGlobal("CHEST_DEF")); got != 22 {
+		t.Errorf("chest enchant defense = %v, want 22", a.L.GetGlobal("CHEST_DEF"))
+	}
+	if a.L.GetGlobal("HEAD_STATS") != lua.LNil {
+		t.Errorf("an enchant without a tooltip line got stats: %v", a.L.GetGlobal("HEAD_STATS"))
+	}
+	a.noErrors(t)
+}

@@ -124,6 +124,15 @@ function tooltipMethods:NumLines() return self.lines or 0 end
 function tooltipMethods:SetHyperlink(link)
 	local id = tonumber(string.match(link, "item:(%d+)"))
 	local lines = (id and FAKE.tooltips[id]) or {}
+	-- the enchant's line, as the client shows it under the stats
+	local enchant = tonumber(string.match(link, "item:%d+:(%d+)") or "")
+	local extra = enchant and FAKE.enchantLines and FAKE.enchantLines[enchant]
+	if extra then
+		local copy = {}
+		for i, l in ipairs(lines) do copy[i] = l end
+		copy[#copy + 1] = { extra, 0.1, 1, 0.1 }
+		lines = copy
+	end
 	self.lines = #lines
 	for i, l in ipairs(lines) do
 		local left = _G[self.name .. "TextLeft" .. i] or NewFrame()

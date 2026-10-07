@@ -179,6 +179,44 @@ function Scanner.TooltipInfo(link)
 	return usable, bonus
 end
 
+-- EnchantStats reads an enchant's stats from the item tooltip: the lines
+-- the tooltip has with the enchant and not without it. Works for enchants
+-- the phase data does not know (old defense enchants, say); nil when the
+-- enchant has no stat line (procs, tinkers).
+local function tooltipLines(link)
+	local tip = ScanTooltip()
+	tip:SetOwner(WorldFrame, "ANCHOR_NONE")
+	tip:ClearLines()
+	tip:SetHyperlink(link)
+	local out = {}
+	for i = 1, tip:NumLines() or 0 do
+		local left = _G["SaroniteScanTooltipTextLeft" .. i]
+		local text = left and left:GetText()
+		if text then
+			text = string.gsub(string.gsub(text, "|c%x%x%x%x%x%x%x%x", ""), "|r", "")
+			out[text] = (out[text] or 0) + 1
+		end
+	end
+	tip:Hide()
+	return out
+end
+
+function Scanner.EnchantStats(link)
+	local plain = string.gsub(link, "(item:%-?%d+):%-?%d+", "%1:0", 1)
+	if plain == link then return nil end
+	local with, without = tooltipLines(link), tooltipLines(plain)
+	local stats
+	for text, n in pairs(with) do
+		if n > (without[text] or 0) then
+			for code, v in pairs(ns.Rules.StatsFromText(text)) do
+				stats = stats or {}
+				stats[code] = (stats[code] or 0) + v
+			end
+		end
+	end
+	return stats
+end
+
 -- Builds the export record of one item. Returns nil for unreadable items.
 local function ItemRecord(loc, slot, link, count)
 	local parsed = Scanner.ParseLink(link)
@@ -208,6 +246,9 @@ local function ItemRecord(loc, slot, link, count)
 		equipLoc = equipLoc,
 		usable = usable,
 		bonus = bonus,
+		-- equipped items: the enchant's stats from the tooltip (not exported;
+		-- the addon's own optimizer uses them)
+		enchantStats = loc == "E" and parsed.enchant ~= 0 and Scanner.EnchantStats(link) or nil,
 	}
 end
 

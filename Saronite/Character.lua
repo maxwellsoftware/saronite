@@ -35,6 +35,7 @@ local function itemFromRecord(r)
 		ilvl = r.ilvl or 0,
 		unusable = r.usable == false,
 		socketBonus = Rules.StatsFromText(r.bonus),
+		enchantStats = r.enchantStats,
 	}
 end
 

@@ -185,6 +185,7 @@ function O:prepare()
 	self.expTalents = math.max(0, (s.expMH or 0) - math.floor((s.expertise or 0) / Rules.expertisePerPoint))
 	self.baseDef = math.max(0, (s.defense or 0) - (gear.DEF or 0))
 	self.baseArp = math.max(0, (s.arp or 0) - (gear.ARP or 0))
+	self.baseHasteRes = math.max(0, (s.hasteSpell or 0) - (gear.HASTE or 0))
 
 	-- the main haste breakpoint, valued like a cap where guides chase it
 	self.hasteBP, self.hastePre, self.hastePost, self.baseHaste = 0, 0, 0, 0
@@ -197,7 +198,7 @@ function O:prepare()
 		self.hasteBP = Rules.HasteRatings(h, ranks)[1]
 		self.hastePre = math.max(self.w.HASTE or 0, 1.15 * self.gemUnit)
 		self.hastePost = h.post * (self.w.HASTE or 0)
-		self.baseHaste = math.max(0, (s.hasteSpell or 0) - (gear.HASTE or 0))
+		self.baseHaste = self.baseHasteRes
 	end
 end
 
@@ -256,7 +257,8 @@ function O:currentSetup()
 		if self.data.enchants[it.enchant] then
 			s.enchant = self.data.enchants[it.enchant]
 		elseif it.enchant ~= 0 then
-			s.enchant = { id = it.enchant, stats = {} }
+			-- stats read from the item tooltip (live character); unknown otherwise
+			s.enchant = { id = it.enchant, stats = it.enchantStats or {} }
 		else
 			s.enchant = NO_ENCHANT
 		end
@@ -565,6 +567,46 @@ function O:initialSetup()
 	return setup
 end
 
+-- Enchants: every option of the slot (any spec's plan, tank defense
+-- enchants) is tried and the best one kept (as the Go code).
+function O:enchantAllowed(rec, it, slot)
+	local c = self.c
+	if rec.profession and not c.professions[rec.profession] then return false end
+	local name = rec.name or ""
+	if string.sub(name, 1, 7) == "Rune of" and c.class ~= "DEATHKNIGHT" then return false end
+	local shield = string.find(name, "Shield", 1, true) ~= nil or string.find(name, "Plating", 1, true) ~= nil
+	if slot == 17 and shield ~= (it.type == "SHIELD") then return false end
+	if slot == 16 and shield then return false end
+	if (Rules.TwoHandOnly(rec) or string.find(name, "2H Weapon", 1, true)) and it.type ~= "2HWEAPON" then return false end
+	return true
+end
+
+function O:optimizeEnchants(setup)
+	local changed = false
+	local c = self.c
+	local options = self.data.enchantOptions or {}
+	for _, slot in ipairs(sortedKeys(setup)) do
+		local s = setup[slot]
+		local skip = not ENCHANT_SLOTS[slot] or (slot == 18 and c.class ~= "HUNTER")
+			or ((slot == 11 or slot == 12) and not c.professions.ENCHANTING)
+		if not skip then
+			local orig = s.enchant.id
+			local best, bestScore = s.enchant, self:totals(setup).score
+			for _, id in ipairs(options[Rules.bisSlots[slot]] or {}) do
+				local rec = self.data.enchants[id]
+				if rec and rec.id ~= best.id and self:enchantAllowed(rec, s.item, slot) then
+					s.enchant = rec
+					local sc = self:totals(setup).score
+					if sc > bestScore + EPS then best, bestScore = rec, sc end
+				end
+			end
+			s.enchant = best
+			if best.id ~= orig then changed = true end
+		end
+	end
+	return changed
+end
+
 function O:uniqueUsed(setup, id, slot, socket)
 	for sl, s in pairs(setup) do
 		for i, g in ipairs(s.gems) do
@@ -744,6 +786,7 @@ function O:polishSockets(setup)
 	for _ = 1, 4 do
 		local changed = self:socketMoves(setup, sortedKeys(setup))
 		if self:swapGems(setup) then changed = true end
+		if self:optimizeEnchants(setup) then changed = true end
 		if not changed then return end
 		self:optimizeGems(setup)
 	end
